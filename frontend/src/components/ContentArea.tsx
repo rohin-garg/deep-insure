@@ -1,5 +1,5 @@
 import ReactMarkdown from 'react-markdown';
-import { InsuranceSection } from "@/lib/mockData";
+import { InsuranceSection } from "@/utils/mockData";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AlertCircle } from "lucide-react";
 

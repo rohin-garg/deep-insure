@@ -3,7 +3,7 @@ import { Search, Menu, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { InsuranceSection } from "@/lib/mockData";
+import { InsuranceSection } from "@/utils/mockData";
 import { cn } from "@/utils/utils";
 
 interface NavigationProps {
