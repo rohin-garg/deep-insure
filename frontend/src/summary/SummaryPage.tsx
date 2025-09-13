@@ -1,5 +1,5 @@
 import React from 'react';
-import { Header } from './Header';
+import { Header } from '../common/Header';
 import { InfoComp } from './InfoComp';
 import { LeftNavigation } from './LeftNavigation';
 
