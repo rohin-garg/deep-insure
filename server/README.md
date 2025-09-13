@@ -1,8 +1,8 @@
 Endpoints
-- generate_chat_id(insurance_plan_url: string): GET -> returns unique id: string
-- get_chat_history(id: string): GET -> returns history of the chat (markdown w/ citations, citation includes relevant words)
+- `generate_chat_id(insurance_plan_url: string)`: GET -> returns unique id: string
+- `get_chat_history(id: string)`: GET -> returns history of the chat (markdown w/ citations, citation includes relevant words): list[string]
     - citation is in standard markdown format: `[key words](link)`
-- get_full_summary(insurance_plan_url: string): GET -> returns json of raw summary of the insurance plan (markdown w/ regular citations)
+- `get_full_summary(insurance_plan_url: string)`: GET -> returns json of raw summary of the insurance plan (markdown w/ regular citations)
     - json schema: 
     ```
     {"body":[
@@ -11,6 +11,8 @@ Endpoints
         ...
     ]}
     ```
+- a`sk_query(id: string, query: string)`: GET -> returns answer to the question (markdown w/ citations, citation includes relevant words): string
+    
 
 General server architecture
 - have a sql table to store the ids: list of chat history
