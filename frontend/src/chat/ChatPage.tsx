@@ -1,10 +1,16 @@
 import React from 'react';
+import { ChatBar } from '../common/ChatBar';
+import { Header } from '../common/Header';
+import { ChatComponent } from './ChatComponent';
+import { SourceComponent } from './SourceComponent';
 
 function ChatPage() {
   return (
     <div>
-      <h1>Chat Page</h1>
-      <p>This is the chat page. Your friend can work on this page.</p>
+      <Header></Header>
+      <ChatComponent></ChatComponent>
+      <SourceComponent></SourceComponent>
+      <ChatBar></ChatBar>
     </div>
   );
 }
