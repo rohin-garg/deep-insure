@@ -11,12 +11,12 @@ Endpoints
         ...
     ]}
     ```
-- a`sk_query(id: string, query: string)`: GET -> returns answer to the question (markdown w/ citations, citation includes relevant words): string
+- `ask_query(id: string, query: string)`: GET -> returns answer to the question (markdown w/ citations, citation includes relevant words): string
     
 
 General server architecture
 - have a sql table to store the ids: list of chat history
-    - cols: id: string, insurance_plan_url: string, chat_history: list[prompt, response]
+    - cols: `id: string, insurance_plan_url: string, chat_history: list[prompt, response]`
 - sql table to store the cached context from a URL (both `get_general_context` and `get_insurance_context` data will be cached)
     - cols: url: string, context: string
 - `get_general_context()`: just queries exa's api to get raw text from the page
