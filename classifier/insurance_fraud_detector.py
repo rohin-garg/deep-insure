@@ -8,6 +8,7 @@ from torch.utils.data import Dataset, DataLoader
 import json
 from tqdm import tqdm
 import os
+from insurance_fragments.py import data
 
 class InsuranceFraudDetector(nn.Module):
     def __init__(self, model_name: str = "google/gemma-3-12b-it", num_labels: int = 2, device: str = None):
