@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { cn } from "@/lib/utils";
+import { cn } from "@/utils/utils";
 
 interface TOCItem {
   id: string;

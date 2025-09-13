@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { InsuranceSection } from "@/lib/mockData";
-import { cn } from "@/lib/utils";
+import { cn } from "@/utils/utils";
 
 interface NavigationProps {
   sections: InsuranceSection[];

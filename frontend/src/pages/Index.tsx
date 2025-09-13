@@ -5,7 +5,7 @@ import { Navigation } from "@/components/Navigation";
 import { ContentArea } from "@/components/ContentArea";
 import { TableOfContents } from "@/components/TableOfContents";
 import { ChatBar } from "@/components/ChatBar";
-import { mockSummary } from "@/lib/mockData";
+import { mockSummary } from "@/utils/mockData";
 import { useToast } from "@/hooks/use-toast";
 
 const Index = () => {
