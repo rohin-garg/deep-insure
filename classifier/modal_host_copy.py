@@ -155,69 +155,66 @@ class InsuranceFraudDetector(nn.Module):
         }
 
 
+web_app = FastAPI()
 
 # -------------------
 # Modal setup
 # -------------------
 app = modal.App("insurance-fraud-detector-gpu")
 
-# install dependencies in the container
-image = (
-    modal.Image.debian_slim()
-    .pip_install("torch", "fastapi", "uvicorn", "pydantic", "accelerate", "transformers", "numpy")
+# Persistent volume where checkpoint resides
+volume = modal.Volume.from_name("insurance-models")
+MODEL_DIR = Path("/models")
+CHECKPOINT_FILE = MODEL_DIR / "state_dict_100_2e-3.pth"
+device = "cuda" if torch.cuda.is_available() else "cpu"
+
+tokenizer = AutoTokenizer.from_pretrained("google/gemma-3-12b-it")
+
+# -------------------
+# Model container class
+# -------------------
+@app.cls(
+    image=modal.Image.debian_slim().pip_install("torch", "transformers", "fastapi", "accelerate"),
+    gpu="H100",
+    volumes={MODEL_DIR: volume},
+    timeout=1200
 )
+class ModelContainer:
+    def __init__(self):
+        self.model = InsuranceFraudDetector(device=device)
+        checkpoint = torch.load(CHECKPOINT_FILE, map_location=device)
+        classifier_state = checkpoint['classifier_state_dict']
+        classifier_dict = {k.replace('classifier.', ''): v for k, v in classifier_state.items() if 'classifier' in k}
+        self.model.classifier.load_state_dict(classifier_dict)
+        self.model.eval()
+        print("Model loaded successfully!")
 
-# -------------------
-# FastAPI app
-# -------------------
+    def predict(self, features):
+        with torch.no_grad():
+            x = torch.tensor(features, dtype=torch.float32).unsqueeze(0)
+            y = self.model(x).item()
+        return y
+
 web_app = FastAPI()
-
-# Request schema
-class InferenceRequest(BaseModel):
-    features: list[float]  # numeric features for the model
-
-if not torch.cuda.is_available():
-    device = 'cpu'
-else:
-    device = 'cuda'
-checkpoint_path = "insurance-models/state_dict_100_2e-3.pth"
-
-
-
-# Load model only once per container
-with image.imports():
-    model = InsuranceFraudDetector(device=device)
-    # model.load_state_dict(torch.load(model_path))
-    checkpoint = torch.load(checkpoint_path, map_location=device)
-    classifier_state = checkpoint['classifier_state_dict']
-    classifier_dict = {k.replace('classifier.', ''): v for k, v in classifier_state.items() if 'classifier' in k}
-    model.classifier.load_state_dict(classifier_dict)
-    print("Classifier weights loaded successfully!")
-    model.eval()
-
+model_container = ModelContainer()  # global
 
 @web_app.post("/predict")
-def predict(req: InferenceRequest):
-    with torch.no_grad():
-        x = torch.tensor(req.features, dtype=torch.float32).unsqueeze(0)
-        y = model(x).item()
+def predict(req: dict):
+    text = req["features"]  # this is a string like "This is a sample insurance claim."
+    # tokenize the input text
+    inputs = tokenizer(text, return_tensors="pt", padding=True, truncation=True)
+    # pass tokenized input to your model
+    y = model_container.predict(inputs)  
     return {"fraud_probability": y}
+    # return {"fraud_probability": model_container.predict(req["features"])}
 
-
-volume = modal.Volume.from_name(checkpoint_path, create_if_missing=True)
-MODEL_DIR = Path("/models")
-# -------------------
-# Modal function to serve
-# -------------------
 @app.function(
-    image=image,
+    image=modal.Image.debian_slim().pip_install("torch", "transformers", "fastapi", "accelerate"),
     gpu="H100",
-    timeout=1200,     # optional, in seconds
+    volumes={MODEL_DIR: volume},
     secrets=[modal.Secret.from_name("modal")],
-    volumes={MODEL_DIR: volume}
+    timeout=1200
 )
 @modal.asgi_app()
 def serve():
     return web_app
-
-

@@ -11,7 +11,6 @@ from torch.utils.data import Dataset, DataLoader
 import json
 from tqdm import tqdm
 import os
-from pathlib import Path
 
 
 class InsuranceFraudDetector(nn.Module):
@@ -154,70 +153,75 @@ class InsuranceFraudDetector(nn.Module):
             "class": "suspicious" if prob_fraud >= threshold else "normal"
         }
 
+checkpoint_path = "/models/state_dict_100_2e-3.pth"
+model = InsuranceFraudDetector(input_dim=768, device=device)
+checkpoint = torch.load(checkpoint_path, map_location=device)
+classifier_state = checkpoint['classifier_state_dict']
+classifier_dict = {k.replace('classifier.', ''): v for k, v in classifier_state.items() if 'classifier' in k}
+model.classifier.load_state_dict(classifier_dict)
+print("Classifier weights loaded successfully!")
+model.eval()
+
+print(model.predict("This policy requires payment of a large upfront fee before any coverage begins."))
 
 
-# -------------------
-# Modal setup
-# -------------------
-app = modal.App("insurance-fraud-detector-gpu")
+# # -------------------
+# # Modal setup
+# # -------------------
+# app = modal.App("insurance-fraud-detector-gpu")
 
-# install dependencies in the container
-image = (
-    modal.Image.debian_slim()
-    .pip_install("torch", "fastapi", "uvicorn", "pydantic", "accelerate", "transformers", "numpy")
-)
+# # install dependencies in the container
+# image = (
+#     modal.Image.debian_slim()
+#     .pip_install("torch", "fastapi", "uvicorn", "pydantic")
+# )
 
-# -------------------
-# FastAPI app
-# -------------------
-web_app = FastAPI()
+# # -------------------
+# # FastAPI app
+# # -------------------
+# web_app = FastAPI()
 
-# Request schema
-class InferenceRequest(BaseModel):
-    features: list[float]  # numeric features for the model
+# # Request schema
+# class InferenceRequest(BaseModel):
+#     features: list[float]  # numeric features for the model
 
-if not torch.cuda.is_available():
-    device = 'cpu'
-else:
-    device = 'cuda'
-checkpoint_path = "insurance-models/state_dict_100_2e-3.pth"
-
-
-
-# Load model only once per container
-with image.imports():
-    model = InsuranceFraudDetector(device=device)
-    # model.load_state_dict(torch.load(model_path))
-    checkpoint = torch.load(checkpoint_path, map_location=device)
-    classifier_state = checkpoint['classifier_state_dict']
-    classifier_dict = {k.replace('classifier.', ''): v for k, v in classifier_state.items() if 'classifier' in k}
-    model.classifier.load_state_dict(classifier_dict)
-    print("Classifier weights loaded successfully!")
-    model.eval()
+# if not torch.cuda.is_available():
+#         device = 'cpu'
+# else:
+#     device = 'cuda'
+# checkpoint_path = "/models/state_dict_100_2e-3.pth"
+# # Load model only once per container
+# with image.imports():
+#     model = InsuranceFraudDetector(input_dim=768, device=device)
+#     # model.load_state_dict(torch.load(model_path))
+#     checkpoint = torch.load(checkpoint_path, map_location=device)
+#     classifier_state = checkpoint['classifier_state_dict']
+#     classifier_dict = {k.replace('classifier.', ''): v for k, v in classifier_state.items() if 'classifier' in k}
+#     model.classifier.load_state_dict(classifier_dict)
+#     print("Classifier weights loaded successfully!")
+#     model.eval()
 
 
-@web_app.post("/predict")
-def predict(req: InferenceRequest):
-    with torch.no_grad():
-        x = torch.tensor(req.features, dtype=torch.float32).unsqueeze(0)
-        y = model(x).item()
-    return {"fraud_probability": y}
+# @web_app.post("/predict")
+# def predict(req: InferenceRequest):
+#     with torch.no_grad():
+#         x = torch.tensor(req.features, dtype=torch.float32).unsqueeze(0)
+#         y = model(x).item()
+#     return {"fraud_probability": y}
 
 
-volume = modal.Volume.from_name(checkpoint_path, create_if_missing=True)
-MODEL_DIR = Path("/models")
-# -------------------
-# Modal function to serve
-# -------------------
-@app.function(
-    image=image,
-    gpu="H100",
-    timeout=1200,     # optional, in seconds
-    secrets=[modal.Secret.from_name("modal")],
-    volumes={MODEL_DIR: volume}
-)
-@modal.asgi_app()
-def serve():
-    return web_app
+# # -------------------
+# # Modal function to serve
+# # -------------------
+# @app.function(
+#     image=image,
+#     gpu="H100",     # or "A100", "H100"
+#     timeout=1200     # optional, in seconds
+# )
+# @modal.asgi_app()
+# def serve():
+#     return web_app
+
+
 
 
