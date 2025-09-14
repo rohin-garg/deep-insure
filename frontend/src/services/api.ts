@@ -1,6 +1,7 @@
 import { InsuranceSection } from "@/utils/mockData";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+// Remove trailing slash if present
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '');
 
 // Backend response types
 interface BackendSummaryPage {
@@ -50,7 +51,11 @@ export const api = {
         insurance_plan_url: insurancePlanUrl
       });
 
-      const response = await fetch(`${API_BASE_URL}/get_full_summary?${params}`, {
+      const url = `${API_BASE_URL}/get_full_summary?${params}`;
+      console.log('Fetching summary from:', url);
+      console.log('With params:', { insurance_plan_url: insurancePlanUrl });
+
+      const response = await fetch(url, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -59,70 +64,116 @@ export const api = {
         }
       });
 
+      console.log('Response status:', response.status);
+      console.log('Response headers:', response.headers);
+
       if (!response.ok) {
-        throw new Error(`API error: ${response.status} ${response.statusText}`);
+        const errorText = await response.text();
+        console.error('Error response body:', errorText);
+        throw new Error(`API error: ${response.status} ${response.statusText} - ${errorText}`);
       }
 
       const data: BackendSummaryResponse = await response.json();
-      return transformSummaryResponse(data);
+      console.log('Received data:', data);
+
+      const transformed = transformSummaryResponse(data);
+      console.log('Transformed sections:', transformed);
+
+      return transformed;
     } catch (error) {
       console.error('Error fetching summary:', error);
       throw error;
     }
   },
 
-  // Placeholder for future endpoints
   async generateChatId(insurancePlanUrl: string): Promise<string> {
-    const params = new URLSearchParams({
-      insurance_plan_url: insurancePlanUrl
-    });
+    try {
+      const params = new URLSearchParams({
+        insurance_plan_url: insurancePlanUrl
+      });
 
-    const response = await fetch(`${API_BASE_URL}/generate_chat_id?${params}`, {
-      method: 'GET',
-      headers: {
-        'ngrok-skip-browser-warning': 'true'
+      console.log('Generating chat ID for:', insurancePlanUrl);
+
+      const response = await fetch(`${API_BASE_URL}/generate_chat_id?${params}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'ngrok-skip-browser-warning': 'true'
+        }
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Error generating chat ID:', errorText);
+        throw new Error(`API error: ${response.status}`);
       }
-    });
 
-    if (!response.ok) {
-      throw new Error(`API error: ${response.status}`);
+      const data = await response.json();
+      console.log('Generated chat ID:', data.id);
+      return data.id;
+    } catch (error) {
+      console.error('Error in generateChatId:', error);
+      throw error;
     }
-
-    const data = await response.json();
-    return data.id;
   },
 
   async getChatHistory(id: string): Promise<string[]> {
-    const params = new URLSearchParams({ id });
+    try {
+      const params = new URLSearchParams({ id });
 
-    const response = await fetch(`${API_BASE_URL}/get_chat_history?${params}`, {
-      method: 'GET',
-      headers: {
-        'ngrok-skip-browser-warning': 'true'
+      console.log('Fetching chat history for ID:', id);
+
+      const response = await fetch(`${API_BASE_URL}/get_chat_history?${params}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'ngrok-skip-browser-warning': 'true'
+        }
+      });
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          console.log('Chat session not found, returning empty history');
+          return [];
+        }
+        throw new Error(`API error: ${response.status}`);
       }
-    });
 
-    if (!response.ok) {
-      throw new Error(`API error: ${response.status}`);
+      const history = await response.json();
+      console.log('Retrieved chat history:', history);
+      return history;
+    } catch (error) {
+      console.error('Error in getChatHistory:', error);
+      throw error;
     }
-
-    return response.json();
   },
 
   async askQuery(id: string, query: string): Promise<string> {
-    const params = new URLSearchParams({ id, query });
+    try {
+      const params = new URLSearchParams({ id, query });
 
-    const response = await fetch(`${API_BASE_URL}/ask_query?${params}`, {
-      method: 'GET',
-      headers: {
-        'ngrok-skip-browser-warning': 'true'
+      console.log('Asking query:', query, 'for chat ID:', id);
+
+      const response = await fetch(`${API_BASE_URL}/ask_query?${params}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'ngrok-skip-browser-warning': 'true'
+        }
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Error asking query:', errorText);
+        throw new Error(`API error: ${response.status}`);
       }
-    });
 
-    if (!response.ok) {
-      throw new Error(`API error: ${response.status}`);
+      const data = await response.json();
+      console.log('Query response:', data);
+      return data.answer || data;
+    } catch (error) {
+      console.error('Error in askQuery:', error);
+      throw error;
     }
-
-    return response.text();
   }
 };

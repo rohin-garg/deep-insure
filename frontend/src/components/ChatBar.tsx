@@ -6,9 +6,10 @@ import { Send } from "lucide-react";
 
 interface ChatBarProps {
   onFollowUpQuestion?: (question: string) => void;
+  insuranceUrl?: string;
 }
 
-export const ChatBar = ({ onFollowUpQuestion }: ChatBarProps) => {
+export const ChatBar = ({ onFollowUpQuestion, insuranceUrl }: ChatBarProps) => {
   const [query, setQuery] = useState("");
   const navigate = useNavigate();
   const location = useLocation();
@@ -21,9 +22,9 @@ export const ChatBar = ({ onFollowUpQuestion }: ChatBarProps) => {
         // Handle follow-up question on chat page
         onFollowUpQuestion(query.trim());
         setQuery(""); // Clear the input
-      } else {
-        // Navigate to chat page with new question
-        navigate(`/chat?q=${encodeURIComponent(query.trim())}`);
+      } else if (insuranceUrl) {
+        // Navigate to chat page with new question and insurance URL
+        navigate(`/chat?q=${encodeURIComponent(query.trim())}&url=${encodeURIComponent(insuranceUrl)}`);
       }
     }
   };
@@ -43,13 +44,20 @@ export const ChatBar = ({ onFollowUpQuestion }: ChatBarProps) => {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder={isOnChatPage ? "Ask a follow up question..." : "Ask about your insurance plan..."}
+              placeholder={
+                isOnChatPage
+                  ? "Ask a follow up question..."
+                  : insuranceUrl
+                    ? "Ask about your insurance plan..."
+                    : "Load an insurance plan first..."
+              }
+              disabled={!isOnChatPage && !insuranceUrl}
               className="border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 text-base placeholder:text-muted-foreground/70"
             />
             <Button
               type="submit"
               size="sm"
-              disabled={!query.trim()}
+              disabled={!query.trim() || (!isOnChatPage && !insuranceUrl)}
               className="shrink-0"
             >
               <Send className="h-4 w-4" />

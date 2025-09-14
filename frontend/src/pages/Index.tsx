@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Header } from "@/components/Header";
 import { URLInput } from "@/components/URLInput";
 import { Navigation } from "@/components/Navigation";
@@ -10,21 +11,27 @@ import { useToast } from "@/hooks/use-toast";
 import { api } from "@/services/api";
 
 const Index = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [currentView, setCurrentView] = useState<'input' | 'wiki'>('input');
   const [activeSection, setActiveSection] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [summary, setSummary] = useState<InsuranceSection[]>([]);
+  const [currentInsuranceUrl, setCurrentInsuranceUrl] = useState<string>('');
   const { toast } = useToast();
 
   const handleUrlSubmit = async (url: string) => {
     setCurrentView('wiki');
     setLoading(true);
+    setCurrentInsuranceUrl(url);
 
     try {
       const data = await api.getFullSummary(url);
       setSummary(data);
       setActiveSection(data[0]?.id || '');
       setLoading(false);
+
+      // Update URL params with the insurance URL
+      setSearchParams({ url });
     } catch (error) {
       console.error('Error fetching summary:', error);
       toast({
@@ -64,6 +71,15 @@ const Index = () => {
     }
   };
 
+  // Load from URL params on mount
+  useEffect(() => {
+    const urlParam = searchParams.get('url');
+
+    if (urlParam && !currentInsuranceUrl) {
+      handleUrlSubmit(urlParam);
+    }
+  }, []);
+
   const currentSection = summary.find(section => section.id === activeSection);
 
   return (
@@ -98,11 +114,11 @@ const Index = () => {
           onCitationClick={handleCitationClick}
         />
             
-            <TableOfContents 
+            <TableOfContents
               markdown={currentSection?.text}
             />
           </div>
-          <ChatBar />
+          <ChatBar insuranceUrl={currentInsuranceUrl} />
         </>
       )}
     </div>
