@@ -1,28 +1,137 @@
 import ReactMarkdown from 'react-markdown';
 import { InsuranceSection } from "@/utils/mockData";
 import { Skeleton } from "@/components/ui/skeleton";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, Loader2, Search, Brain, Zap } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
 
 interface ContentAreaProps {
   section?: InsuranceSection;
   loading?: boolean;
   onCitationClick?: (link: string) => void;
+  enableTypingAnimation?: boolean;
+  loadingUrl?: string;
 }
 
-export const ContentArea = ({ section, loading, onCitationClick }: ContentAreaProps) => {
+export const ContentArea = ({ section, loading, onCitationClick, enableTypingAnimation = false, loadingUrl = '' }: ContentAreaProps) => {
+  const [displayText, setDisplayText] = useState('');
+  const [isTyping, setIsTyping] = useState(false);
+  const [loadingText, setLoadingText] = useState('');
+  const [dotCount, setDotCount] = useState(1);
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const loadingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const dotIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+
+  // Flavor text for loading states with URL
+  const loadingMessages = [
+    `Scanning ${loadingUrl}...`,
+    "Analyzing your insurance policy...",
+    "Extracting key coverage details...",
+    "Processing policy terms and conditions...",
+    "Identifying important benefits and limitations...",
+    "Generating comprehensive summary...",
+    "Organizing coverage sections...",
+    "Preparing interactive navigation...",
+    "Almost ready with your personalized wiki..."
+  ];
+
+  // Word-by-word typing animation
+  const typeText = (text: string) => {
+    if (!enableTypingAnimation) {
+      setDisplayText(text);
+      return;
+    }
+
+    const words = text.split(' ');
+    let currentWordIndex = 0;
+    const typingSpeed = 6; // milliseconds per word (4x faster than before)
+
+    const typeNextWord = () => {
+      if (currentWordIndex < words.length) {
+        const currentText = words.slice(0, currentWordIndex + 1).join(' ');
+        setDisplayText(currentText);
+        setIsTyping(true);
+        currentWordIndex++;
+        typingTimeoutRef.current = setTimeout(typeNextWord, typingSpeed);
+      } else {
+        setIsTyping(false);
+      }
+    };
+
+    typeNextWord();
+  };
+
+  // Start loading text rotation when loading starts
+  useEffect(() => {
+    if (loading && loadingUrl) {
+      setLoadingText(loadingMessages[0]);
+      
+      // Rotate through loading messages
+      let messageIndex = 0;
+      loadingIntervalRef.current = setInterval(() => {
+        messageIndex = (messageIndex + 1) % loadingMessages.length;
+        setLoadingText(loadingMessages[messageIndex]);
+      }, 300);
+
+      // Start dot animation
+      dotIntervalRef.current = setInterval(() => {
+        setDotCount(prev => (prev % 3) + 1);
+      }, 500);
+    } else {
+      if (loadingIntervalRef.current) {
+        clearInterval(loadingIntervalRef.current);
+      }
+      if (dotIntervalRef.current) {
+        clearInterval(dotIntervalRef.current);
+      }
+    }
+
+    return () => {
+      if (loadingIntervalRef.current) {
+        clearInterval(loadingIntervalRef.current);
+      }
+      if (dotIntervalRef.current) {
+        clearInterval(dotIntervalRef.current);
+      }
+    };
+  }, [loading, loadingUrl]);
+
+  // Start typing animation when section changes
+  useEffect(() => {
+    if (section && !loading) {
+      typeText(section.text);
+    }
+  }, [section, loading, enableTypingAnimation]);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+      if (loadingIntervalRef.current) {
+        clearInterval(loadingIntervalRef.current);
+      }
+      if (dotIntervalRef.current) {
+        clearInterval(dotIntervalRef.current);
+      }
+    };
+  }, []);
   if (loading) {
     return (
-      <div className="flex-1 p-8 space-y-4">
-        <Skeleton className="h-8 w-3/4" />
-        <Skeleton className="h-4 w-full" />
-        <Skeleton className="h-4 w-full" />
-        <Skeleton className="h-4 w-2/3" />
-        <div className="space-y-2 mt-8">
-          <Skeleton className="h-6 w-1/2" />
-          <Skeleton className="h-4 w-full" />
-          <Skeleton className="h-4 w-full" />
-          <Skeleton className="h-4 w-3/4" />
-        </div>
+      <div className="flex-1 scrollable">
+        <article className="max-w-4xl mx-auto p-8 prose prose-slate dark:prose-invert prose-headings:text-foreground prose-p:text-foreground prose-strong:text-foreground prose-li:text-foreground">
+          <div className="mb-6">
+            <h1 className="text-2xl font-bold text-foreground">
+              Searching for insurance details{'.'.repeat(dotCount)}
+            </h1>
+          </div>
+          <div className="border-b border-border pb-4 mb-6">
+            <p className="text-lg text-muted-foreground">
+              {loadingText}
+            </p>
+          </div>
+        </article>
       </div>
     );
   }
@@ -45,7 +154,7 @@ export const ContentArea = ({ section, loading, onCitationClick }: ContentAreaPr
 
   return (
     <div className="flex-1 scrollable">
-      <article className="max-w-4xl mx-auto p-8 prose prose-slate dark:prose-invert prose-headings:text-foreground prose-p:text-foreground prose-strong:text-foreground prose-li:text-foreground">
+      <article className="max-w-4xl mx-auto p-8 pb-32 prose prose-slate dark:prose-invert prose-headings:text-foreground prose-p:text-foreground prose-strong:text-foreground prose-li:text-foreground">
         <ReactMarkdown
           components={{
             a: ({ href, children }) => (
@@ -109,7 +218,7 @@ export const ContentArea = ({ section, loading, onCitationClick }: ContentAreaPr
             )
           }}
         >
-          {section.text}
+          {displayText || section.text}
         </ReactMarkdown>
       </article>
     </div>

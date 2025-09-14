@@ -14,6 +14,8 @@ interface ChatMessage {
   type: 'user' | 'ai';
   content: string;
   isLoading?: boolean;
+  isTyping?: boolean;
+  displayContent?: string;
 }
 
 interface SourceCard {
@@ -30,12 +32,16 @@ const Chat = () => {
   const [isLoadingNewMessage, setIsLoadingNewMessage] = useState(false);
   const [chatId, setChatId] = useState<string | null>(null);
   const [insuranceUrl, setInsuranceUrl] = useState<string>('');
+  const [isLoadingSources, setIsLoadingSources] = useState(false);
+  const [visibleSources, setVisibleSources] = useState<Set<number>>(new Set());
   const [dividerPosition, setDividerPosition] = useState(45); // Percentage for left panel
   const [isDragging, setIsDragging] = useState(false);
   const [collapsedSources, setCollapsedSources] = useState<Set<number>>(new Set());
+  const [highlightedSource, setHighlightedSource] = useState<number | null>(null);
   const chatScrollRef = useRef<HTMLDivElement>(null);
   const sourcesScrollRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const { toast } = useToast();
 
   const handleInitialQuestion = useCallback(async (question: string, url: string, existingChatId: string | null) => {
@@ -72,13 +78,16 @@ const Chat = () => {
       // Update the AI message with response
       setMessages(prev => prev.map(msg =>
         msg.id === aiMessage.id
-          ? { ...msg, content: response, isLoading: false }
+          ? { ...msg, content: response, isLoading: false, displayContent: '' }
           : msg
       ));
 
       // Parse sources from response
       const extractedSources = extractSourcesFromResponse(response);
       setSources(extractedSources);
+
+      // Start typing animation
+      typeMessage(aiMessage.id, response);
     } catch (error) {
       console.error('Error processing initial question:', error);
       toast({
@@ -152,7 +161,7 @@ const Chat = () => {
     };
 
     initializeChat();
-  }, [searchParams]);
+  }, [searchParams, handleInitialQuestion]);
 
   const handleMouseDown = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -195,6 +204,15 @@ const Chat = () => {
     };
   }, [isDragging, handleMouseMove]);
 
+  // Cleanup typing timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+    };
+  }, []);
+
   const toggleSourceCollapse = (index: number) => {
     setCollapsedSources(prev => {
       const newSet = new Set(prev);
@@ -205,6 +223,80 @@ const Chat = () => {
       }
       return newSet;
     });
+  };
+
+  const animateSourcesLoading = (sourceCards: SourceCard[]) => {
+    setIsLoadingSources(true);
+    setSources(sourceCards);
+    setVisibleSources(new Set()); // Start with all sources hidden
+    setCollapsedSources(new Set(sourceCards.map((_, index) => index))); // Start all collapsed
+    
+    // Animate sources appearing one by one
+    sourceCards.forEach((_, index) => {
+      setTimeout(() => {
+        setVisibleSources(prev => new Set([...prev, index]));
+      }, index * 200); // 200ms delay between each source
+    });
+    
+    // Finish loading after all sources are visible
+    setTimeout(() => {
+      setIsLoadingSources(false);
+    }, sourceCards.length * 200 + 500);
+  };
+
+  const handleCitationClick = (sourceIndex: number) => {
+    setHighlightedSource(sourceIndex);
+
+    // Expand the source card if it's collapsed
+    setCollapsedSources(prev => {
+      const newSet = new Set(prev);
+      newSet.delete(sourceIndex); // Remove from collapsed set to expand it
+      return newSet;
+    });
+
+    // Scroll to the source element
+    const sourceElement = document.querySelector(`[data-source-index="${sourceIndex}"]`);
+    if (sourceElement && sourcesScrollRef.current) {
+      sourceElement.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center'
+      });
+    }
+
+    // Auto-clear highlight after 3 seconds
+    setTimeout(() => {
+      setHighlightedSource(null);
+    }, 3000);
+  };
+
+  const typeMessage = (messageId: string, fullContent: string) => {
+    const words = fullContent.split(' ');
+    let currentWordIndex = 0;
+    const typingSpeed = 6; // milliseconds per word (4x faster than before)
+
+    const typeNextWord = () => {
+      if (currentWordIndex < words.length) {
+        const displayContent = words.slice(0, currentWordIndex + 1).join(' ');
+
+        setMessages(prev => prev.map(msg =>
+          msg.id === messageId
+            ? { ...msg, displayContent, isTyping: true }
+            : msg
+        ));
+
+        currentWordIndex++;
+        typingTimeoutRef.current = setTimeout(typeNextWord, typingSpeed);
+      } else {
+        // Typing complete
+        setMessages(prev => prev.map(msg =>
+          msg.id === messageId
+            ? { ...msg, isTyping: false, displayContent: fullContent }
+            : msg
+        ));
+      }
+    };
+
+    typeNextWord();
   };
 
   const handleFollowUpQuestion = async (question: string) => {
@@ -250,13 +342,16 @@ const Chat = () => {
       // Update the AI message with response
       setMessages(prev => prev.map(msg =>
         msg.id === aiMessage.id
-          ? { ...msg, content: response, isLoading: false }
+          ? { ...msg, content: response, isLoading: false, displayContent: '' }
           : msg
       ));
 
       // Parse and add new sources from response
       const extractedSources = extractSourcesFromResponse(response);
       setSources(prev => [...prev, ...extractedSources]);
+
+      // Start typing animation
+      typeMessage(aiMessage.id, response);
 
       // Auto-scroll again after sources are added
       setTimeout(() => {
@@ -323,20 +418,20 @@ const Chat = () => {
 Your policy includes several key benefits:
 
 **Coverage Highlights:**
-- Preventive care is covered at 100% when using in-network providers
-- Primary care visits have a $25 copay
-- Specialist visits require a $50 copay
-- Emergency room visits have a $300 copay (waived if admitted)
+- Preventive care is covered at 100% when using in-network providers [1]
+- Primary care visits have a $25 copay [2]
+- Specialist visits require a $50 copay [2]
+- Emergency room visits have a $300 copay (waived if admitted) [1]
 
 **Detailed Benefits:**
-Your plan covers a wide range of medical services including hospital stays, outpatient surgery, diagnostic tests, and prescription medications. Mental health services are covered at the same level as medical benefits.
+Your plan covers a wide range of medical services including hospital stays, outpatient surgery, diagnostic tests, and prescription medications [3]. Mental health services are covered at the same level as medical benefits [1].
 
-For more specific information about [deductibles and copays](section-2), please refer to your policy documents. You can also review information about [network providers](section-3) to ensure you're maximizing your benefits.
+For more specific information about deductibles and copays [2], please refer to your policy documents. You can also review information about network providers [3] to ensure you're maximizing your benefits.
 
 **Important Notes:**
-- All percentages and copays listed are for in-network providers
-- Out-of-network services may have reduced coverage
-- Prior authorization may be required for certain procedures
+- All percentages and copays listed are for in-network providers [3]
+- Out-of-network services may have reduced coverage [1]
+- Prior authorization may be required for certain procedures [2]
 
 Would you like me to elaborate on any specific aspect of your coverage?`;
 
@@ -423,7 +518,7 @@ Would you like me to elaborate on any specific aspect of your coverage?`;
                       ) : (
                         <div className="bg-card border border-border rounded-lg p-4">
                           <div className="prose prose-sm max-w-none text-foreground">
-                            {message.content.split('\n').map((line, index) => (
+                            {(message.displayContent || message.content).split('\n').map((line, index) => (
                               <p key={index} className="mb-2 last:mb-0">
                                 {line.includes('[') && line.includes('](') ? (
                                   <>
@@ -434,6 +529,25 @@ Would you like me to elaborate on any specific aspect of your coverage?`;
                                           <span key={i} className="text-primary hover:underline cursor-pointer">
                                             {linkMatch[1]}
                                           </span>
+                                        );
+                                      }
+                                      return part;
+                                    })}
+                                  </>
+                                ) : line.includes('[') && line.includes(']') ? (
+                                  <>
+                                    {line.split(/(\[\d+\])/g).map((part, i) => {
+                                      const citationMatch = part.match(/\[(\d+)\]/);
+                                      if (citationMatch) {
+                                        const sourceIndex = parseInt(citationMatch[1]) - 1;
+                                        return (
+                                          <button
+                                            key={i}
+                                            onClick={() => handleCitationClick(sourceIndex)}
+                                            className="text-primary hover:text-primary/80 underline underline-offset-2 font-medium cursor-pointer bg-transparent border-none p-0 mx-1"
+                                          >
+                                            [{citationMatch[1]}]
+                                          </button>
                                         );
                                       }
                                       return part;
@@ -485,8 +599,25 @@ Would you like me to elaborate on any specific aspect of your coverage?`;
               <div className="space-y-4">
                 {sources.map((source, index) => {
                   const isCollapsed = collapsedSources.has(index);
+                  const isHighlighted = highlightedSource === index;
+                  const isVisible = visibleSources.has(index);
                   return (
-                    <div key={index} className="bg-card border border-border rounded-lg overflow-hidden">
+                    <div 
+                      key={index} 
+                      data-source-index={index}
+                      className={`bg-card border rounded-lg overflow-hidden transition-all duration-500 transform ${
+                        isVisible 
+                          ? 'opacity-100 translate-y-0' 
+                          : 'opacity-0 translate-y-4'
+                      } ${
+                        isHighlighted 
+                          ? 'border-primary bg-primary/5 shadow-lg' 
+                          : 'border-border'
+                      }`}
+                      style={{
+                        transitionDelay: isVisible ? '0ms' : `${index * 200}ms`
+                      }}
+                    >
                       <div className="p-4 border-b border-border bg-muted/50">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">

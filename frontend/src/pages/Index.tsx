@@ -7,11 +7,9 @@ import { Navigation } from "@/components/Navigation";
 import { ContentArea } from "@/components/ContentArea";
 import { TableOfContents } from "@/components/TableOfContents";
 import { ChatBar } from "@/components/ChatBar";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { InsuranceSection } from "@/utils/mockData";
 import { useToast } from "@/hooks/use-toast";
 import { api } from "@/services/api";
-import { Loader2, FileText, Search, Brain, Zap } from "lucide-react";
 
 const Index = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -21,6 +19,7 @@ const Index = () => {
   const [loadingText, setLoadingText] = useState('');
   const [summary, setSummary] = useState<InsuranceSection[]>([]);
   const [currentInsuranceUrl, setCurrentInsuranceUrl] = useState<string>('');
+  const [isSectionHighlighted, setIsSectionHighlighted] = useState(false);
   const { toast } = useToast();
 
   // Scramble animation for loading text
@@ -44,7 +43,6 @@ const Index = () => {
     "Preparing interactive navigation...",
     "Almost ready with your personalized wiki..."
   ], []);
-
   // Check URL parameters to determine initial view
   useEffect(() => {
     const viewParam = searchParams.get('view');
@@ -59,7 +57,7 @@ const Index = () => {
     setCurrentView('wiki');
     setLoading(true);
     setLoadingText(loadingMessages[0]);
-    
+
     // Rotate through loading messages with scramble animation
     let messageIndex = 0;
     const messageInterval = setInterval(() => {
@@ -91,6 +89,12 @@ const Index = () => {
 
   const handleSectionClick = (sectionId: string) => {
     setActiveSection(sectionId);
+
+    // Trigger highlight effect
+    setIsSectionHighlighted(true);
+    setTimeout(() => {
+      setIsSectionHighlighted(false);
+    }, 1000); // Highlight for 1 second
   };
 
   const handleShare = () => {
@@ -132,6 +136,7 @@ const Index = () => {
 
   const currentSection = summary.find(section => section.id === activeSection);
 
+
   return (
     <div className="min-h-screen bg-background">
       <Header onShare={handleShare} onLogoClick={handleLogoClick} />
@@ -140,7 +145,7 @@ const Index = () => {
         <URLInput onSubmit={handleUrlSubmit} />
       ) : (
         <>
-          <div className="flex h-[calc(100vh-4rem)]">
+          <div className="flex h-[calc(100vh-4rem)] min-h-0">
             <Navigation
               sections={summary}
               activeSection={activeSection}
@@ -162,6 +167,8 @@ const Index = () => {
           section={loading ? null : currentSection}
           loading={loading}
           onCitationClick={handleCitationClick}
+          enableTypingAnimation={true}
+          loadingUrl={currentInsuranceUrl}
         />
             
             <TableOfContents
@@ -172,37 +179,6 @@ const Index = () => {
         </>
       )}
 
-      {/* Loading Dialog */}
-      <Dialog open={loading} onOpenChange={() => {}}>
-        <DialogContent className="sm:max-w-md text-center [&>button]:hidden">
-          <DialogHeader className="text-center">
-            <div className="flex justify-center mb-4">
-              <div className="relative">
-                <Loader2 className="h-12 w-12 animate-spin text-primary" />
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <FileText className="h-6 w-6 text-primary/70" />
-                </div>
-              </div>
-            </div>
-            <DialogTitle className="flex items-center justify-center gap-2 text-lg">
-              <Search className="h-5 w-5" />
-              Searching for insurance details...
-            </DialogTitle>
-            <DialogDescription asChild>
-              <div className="text-center space-y-2">
-                <p ref={scrambleRef} className="text-sm text-muted-foreground min-h-[1.25rem]">
-                  {loadingText}
-                </p>
-                <div className="flex items-center justify-center gap-1 text-xs text-muted-foreground">
-                  <Brain className="h-3 w-3" />
-                  <span>AI-powered analysis in progress</span>
-                  <Zap className="h-3 w-3" />
-                </div>
-              </div>
-            </DialogDescription>
-          </DialogHeader>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };

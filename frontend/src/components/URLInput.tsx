@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FileText, ArrowRight } from "lucide-react";
@@ -7,8 +7,64 @@ interface URLInputProps {
   onSubmit: (url: string) => void;
 }
 
+const exampleTexts = [
+  "UnitedHealth",
+  "Anthem", 
+  "Cigna Healthcare",
+  "Federal Marketplace",
+  "https://www.bcbs.com/explore-affordable-health-plans/individual-family-health-insurance",
+  "https://www.uhc.com/medicare/health-plans/details.html/20701/003/H7464011000/2025",
+  "https://www.cigna.com/individuals-families/member-guide/plan-documents"
+];
+
 export const URLInput = ({ onSubmit }: URLInputProps) => {
   const [url, setUrl] = useState("");
+  const [placeholderText, setPlaceholderText] = useState("");
+  const [currentTextIndex, setCurrentTextIndex] = useState(0);
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Typing animation effect
+  useEffect(() => {
+    let currentIndex = 0;
+    let isDeleting = false;
+    let currentText = exampleTexts[currentTextIndex];
+
+    const typeText = () => {
+      if (!isDeleting) {
+        // Typing phase
+        if (currentIndex < currentText.length) {
+          setPlaceholderText(currentText.substring(0, currentIndex + 1));
+          currentIndex++;
+          typingTimeoutRef.current = setTimeout(typeText, 100); // 100ms per character
+        } else {
+          // Finished typing, pause before deleting
+          typingTimeoutRef.current = setTimeout(() => {
+            isDeleting = true;
+            typeText();
+          }, 2000); // 2 second pause
+        }
+      } else {
+        // Deleting phase
+        if (currentIndex > 0) {
+          setPlaceholderText(currentText.substring(0, currentIndex - 1));
+          currentIndex--;
+          typingTimeoutRef.current = setTimeout(typeText, 50); // 50ms per character (faster deletion)
+        } else {
+          // Finished deleting, move to next text
+          isDeleting = false;
+          setCurrentTextIndex(prev => (prev + 1) % exampleTexts.length);
+          currentText = exampleTexts[(currentTextIndex + 1) % exampleTexts.length];
+          typeText();
+        }
+      }
+    };
+
+    typeText();
+
+    return () => {
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    };
+  }, [currentTextIndex]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,18 +81,17 @@ export const URLInput = ({ onSubmit }: URLInputProps) => {
             <FileText className="w-8 h-8 text-primary" />
           </div>
           <h1 className="text-4xl font-bold text-foreground mb-4">
-            Simplify Your Insurance Plan
+            Understand Your Insurance Plan
           </h1>
           <p className="text-xl text-muted-foreground mb-2">
-            Enter your insurance plan URL or type in a company and insurance policy to generate a searchable, easy-to-read wiki
+            Enter your insurance plan URL or type in a company and an insurance policy to generate a searchable, easy-to-read wiki
           </p>
         </div>
-
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="flex flex-col sm:flex-row gap-3">
             <Input
               type="url"
-              placeholder="https://example.com/insurance-plan.pdf"
+              placeholder={placeholderText}
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               className="flex-1 h-12 text-base bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-600"
