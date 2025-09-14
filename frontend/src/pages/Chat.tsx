@@ -1,10 +1,13 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useSearchParams, Link } from "react-router-dom";
 import { Header } from "@/components/Header";
 import { ArrowLeft, User, Bot, ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ChatBar } from "@/components/ChatBar";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { api } from "@/services/api";
+import { useToast } from "@/hooks/use-toast";
 
 interface ChatMessage {
   id: string;
@@ -23,10 +26,12 @@ interface SourceCard {
 }
 
 const Chat = () => {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [sources, setSources] = useState<SourceCard[]>([]);
   const [isLoadingNewMessage, setIsLoadingNewMessage] = useState(false);
+  const [chatId, setChatId] = useState<string | null>(null);
+  const [insuranceUrl, setInsuranceUrl] = useState<string>('');
   const [dividerPosition, setDividerPosition] = useState(45); // Percentage for left panel
   const [isDragging, setIsDragging] = useState(false);
   const [collapsedSources, setCollapsedSources] = useState<Set<number>>(new Set());
@@ -35,45 +40,133 @@ const Chat = () => {
   const sourcesScrollRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const { toast } = useToast();
 
-  useEffect(() => {
-    const q = searchParams.get("q");
-    if (q && messages.length === 0) {
-      // Initial question from URL
-      const userMessage: ChatMessage = {
-        id: Date.now().toString(),
-        type: 'user',
-        content: q
-      };
-      const aiMessage: ChatMessage = {
-        id: (Date.now() + 1).toString(),
-        type: 'ai',
-        content: '',
-        isLoading: true
-      };
-      
-      setMessages([userMessage, aiMessage]);
-      setSources(mockSourceCards);
-      
-      // Simulate AI response loading
-      setTimeout(() => {
-        setMessages(prev => prev.map(msg => 
-          msg.id === aiMessage.id 
-            ? { ...msg, content: mockAIResponse, isLoading: false, displayContent: '' }
-            : msg
-        ));
-        // Start typing animation
-        typeMessage(aiMessage.id, mockAIResponse);
-      }, 2000);
+  const handleInitialQuestion = useCallback(async (question: string, url: string, existingChatId: string | null) => {
+    const userMessage: ChatMessage = {
+      id: Date.now().toString(),
+      type: 'user',
+      content: question
+    };
+    const aiMessage: ChatMessage = {
+      id: (Date.now() + 1).toString(),
+      type: 'ai',
+      content: '',
+      isLoading: true
+    };
+
+    setMessages([userMessage, aiMessage]);
+    setIsLoadingNewMessage(true);
+
+    try {
+      // Generate chat ID if we don't have one
+      let currentChatId = existingChatId;
+      if (!currentChatId) {
+        currentChatId = await api.generateChatId(url);
+        setChatId(currentChatId);
+        // Update URL with chat ID
+        setSearchParams({ q: question, url, chat: currentChatId });
+      }
+
+      // Ask the question
+      console.log('About to call askQuery...');
+      const response = await api.askQuery(currentChatId, question);
+      console.log('Got response from askQuery:', response);
+
+      // Update the AI message with response
+      setMessages(prev => prev.map(msg =>
+        msg.id === aiMessage.id
+          ? { ...msg, content: response, isLoading: false, displayContent: '' }
+          : msg
+      ));
+
+      // Parse sources from response
+      const extractedSources = extractSourcesFromResponse(response);
+      setSources(extractedSources);
+
+      // Start typing animation
+      typeMessage(aiMessage.id, response);
+    } catch (error) {
+      console.error('Error processing initial question:', error);
+      toast({
+        title: "Error",
+        description: "Failed to process your question. Please try again.",
+        variant: "destructive"
+      });
+      setMessages(prev => prev.map(msg =>
+        msg.id === aiMessage.id
+          ? { ...msg, content: 'Sorry, I encountered an error processing your question.', isLoading: false }
+          : msg
+      ));
+    } finally {
+      setIsLoadingNewMessage(false);
     }
-  }, [searchParams]);
+  }, [setSearchParams, toast]);
+
+  // Initialize chat from URL params
+  useEffect(() => {
+    let hasInitialized = false;
+
+    const initializeChat = async () => {
+      if (hasInitialized) return;
+      hasInitialized = true;
+
+      const q = searchParams.get("q");
+      const url = searchParams.get("url");
+      const existingChatId = searchParams.get("chat");
+
+      console.log('Initializing chat with:', { q, url, existingChatId });
+
+      if (url) {
+        setInsuranceUrl(url);
+      }
+
+      // If we have an existing chat ID, load its history
+      if (existingChatId) {
+        setChatId(existingChatId);
+        try {
+          const history = await api.getChatHistory(existingChatId);
+          console.log('Loaded chat history:', history);
+          // Parse history into messages
+          const parsedMessages: ChatMessage[] = [];
+          for (let i = 0; i < history.length; i++) {
+            const msg = history[i];
+            if (msg.startsWith('**User:**')) {
+              parsedMessages.push({
+                id: `history-${i}`,
+                type: 'user',
+                content: msg.replace('**User:** ', '')
+              });
+            } else if (msg.startsWith('**Assistant:**')) {
+              parsedMessages.push({
+                id: `history-${i}`,
+                type: 'ai',
+                content: msg.replace('**Assistant:** ', '')
+              });
+            }
+          }
+          setMessages(parsedMessages);
+        } catch (error) {
+          console.error('Error loading chat history:', error);
+        }
+      }
+
+      // If we have a new question and insurance URL
+      if (q && url) {
+        console.log('Processing initial question');
+        await handleInitialQuestion(q, url, existingChatId);
+      }
+    };
+
+    initializeChat();
+  }, [searchParams, handleInitialQuestion]);
 
   const handleMouseDown = (e: React.MouseEvent) => {
     e.preventDefault();
     setIsDragging(true);
   };
 
-  const handleMouseMove = (e: MouseEvent) => {
+  const handleMouseMove = useCallback((e: MouseEvent) => {
     if (!isDragging || !containerRef.current) return;
     
     const containerRect = containerRef.current.getBoundingClientRect();
@@ -82,7 +175,7 @@ const Chat = () => {
     // Constrain between 20% and 80% to prevent panels from becoming too small
     const constrainedPosition = Math.min(Math.max(newPosition, 20), 80);
     setDividerPosition(constrainedPosition);
-  };
+  }, [isDragging]);
 
   const handleMouseUp = () => {
     setIsDragging(false);
@@ -107,7 +200,7 @@ const Chat = () => {
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
     };
-  }, [isDragging]);
+  }, [isDragging, handleMouseMove]);
 
   // Cleanup typing timeout on unmount
   useEffect(() => {
@@ -132,14 +225,14 @@ const Chat = () => {
 
   const handleCitationClick = (sourceIndex: number) => {
     setHighlightedSource(sourceIndex);
-    
+
     // Expand the source card if it's collapsed
     setCollapsedSources(prev => {
       const newSet = new Set(prev);
       newSet.delete(sourceIndex); // Remove from collapsed set to expand it
       return newSet;
     });
-    
+
     // Scroll to the source element
     const sourceElement = document.querySelector(`[data-source-index="${sourceIndex}"]`);
     if (sourceElement && sourcesScrollRef.current) {
@@ -148,7 +241,7 @@ const Chat = () => {
         block: 'center'
       });
     }
-    
+
     // Auto-clear highlight after 3 seconds
     setTimeout(() => {
       setHighlightedSource(null);
@@ -159,33 +252,41 @@ const Chat = () => {
     const words = fullContent.split(' ');
     let currentWordIndex = 0;
     const typingSpeed = 6; // milliseconds per word (4x faster than before)
-    
+
     const typeNextWord = () => {
       if (currentWordIndex < words.length) {
         const displayContent = words.slice(0, currentWordIndex + 1).join(' ');
-        
-        setMessages(prev => prev.map(msg => 
-          msg.id === messageId 
+
+        setMessages(prev => prev.map(msg =>
+          msg.id === messageId
             ? { ...msg, displayContent, isTyping: true }
             : msg
         ));
-        
+
         currentWordIndex++;
         typingTimeoutRef.current = setTimeout(typeNextWord, typingSpeed);
       } else {
         // Typing complete
-        setMessages(prev => prev.map(msg => 
-          msg.id === messageId 
+        setMessages(prev => prev.map(msg =>
+          msg.id === messageId
             ? { ...msg, isTyping: false, displayContent: fullContent }
             : msg
         ));
       }
     };
-    
+
     typeNextWord();
   };
 
-  const handleFollowUpQuestion = (question: string) => {
+  const handleFollowUpQuestion = async (question: string) => {
+    if (!chatId) {
+      toast({
+        title: "Error",
+        description: "Chat session not initialized.",
+        variant: "destructive"
+      });
+      return;
+    }
     const userMessage: ChatMessage = {
       id: Date.now().toString(),
       type: 'user',
@@ -213,19 +314,24 @@ const Chat = () => {
       });
     }, 100);
 
-    // Simulate AI response
-    setTimeout(() => {
-      setMessages(prev => prev.map(msg => 
-        msg.id === aiMessage.id 
-          ? { ...msg, content: mockAIResponse, isLoading: false, displayContent: '' }
+    try {
+      // Ask the follow-up question
+      const response = await api.askQuery(chatId, question);
+
+      // Update the AI message with response
+      setMessages(prev => prev.map(msg =>
+        msg.id === aiMessage.id
+          ? { ...msg, content: response, isLoading: false, displayContent: '' }
           : msg
       ));
-      setSources(prev => [...prev, ...mockSourceCards]);
-      setIsLoadingNewMessage(false);
-      
+
+      // Parse and add new sources from response
+      const extractedSources = extractSourcesFromResponse(response);
+      setSources(prev => [...prev, ...extractedSources]);
+
       // Start typing animation
-      typeMessage(aiMessage.id, mockAIResponse);
-      
+      typeMessage(aiMessage.id, response);
+
       // Auto-scroll again after sources are added
       setTimeout(() => {
         chatScrollRef.current?.scrollTo({
@@ -237,7 +343,49 @@ const Chat = () => {
           behavior: 'smooth'
         });
       }, 100);
-    }, 2000);
+    } catch (error) {
+      console.error('Error processing follow-up question:', error);
+      toast({
+        title: "Error",
+        description: "Failed to process your question. Please try again.",
+        variant: "destructive"
+      });
+      setMessages(prev => prev.map(msg =>
+        msg.id === aiMessage.id
+          ? { ...msg, content: 'Sorry, I encountered an error processing your question.', isLoading: false }
+          : msg
+      ));
+    } finally {
+      setIsLoadingNewMessage(false);
+    }
+  };
+
+  // Extract sources from markdown response
+  const extractSourcesFromResponse = (response: string): SourceCard[] => {
+    const sources: SourceCard[] = [];
+    // Extract citations in format [text](url)
+    const citationRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
+    const matches = response.matchAll(citationRegex);
+
+    let index = 0;
+    for (const match of matches) {
+      const text = match[1];
+      const url = match[2];
+
+      // Create source card from citation
+      sources.push({
+        title: text,
+        url: url,
+        snippet: `Citation from response: "${text}"`,
+        type: 'Citation'
+      });
+      index++;
+
+      // Limit to prevent too many sources
+      if (index >= 10) break;
+    }
+
+    return sources;
   };
 
   const handleShare = () => {
@@ -505,7 +653,7 @@ Would you like me to elaborate on any specific aspect of your coverage?`;
         </div>
       </div>
 
-      <ChatBar onFollowUpQuestion={handleFollowUpQuestion} />
+      <ChatBar onFollowUpQuestion={handleFollowUpQuestion} insuranceUrl={insuranceUrl} />
     </div>
   );
 };

@@ -6,9 +6,10 @@ import { Send } from "lucide-react";
 
 interface ChatBarProps {
   onFollowUpQuestion?: (question: string) => void;
+  insuranceUrl?: string;
 }
 
-export const ChatBar = ({ onFollowUpQuestion }: ChatBarProps) => {
+export const ChatBar = ({ onFollowUpQuestion, insuranceUrl }: ChatBarProps) => {
   const [query, setQuery] = useState("");
   const [isFocused, setIsFocused] = useState(false);
   const navigate = useNavigate();
@@ -22,9 +23,9 @@ export const ChatBar = ({ onFollowUpQuestion }: ChatBarProps) => {
         // Handle follow-up question on chat page
         onFollowUpQuestion(query.trim());
         setQuery(""); // Clear the input
-      } else {
-        // Navigate to chat page with new question
-        navigate(`/chat?q=${encodeURIComponent(query.trim())}`);
+      } else if (insuranceUrl) {
+        // Navigate to chat page with new question and insurance URL
+        navigate(`/chat?q=${encodeURIComponent(query.trim())}&url=${encodeURIComponent(insuranceUrl)}`);
       }
     }
   };
@@ -56,7 +57,7 @@ export const ChatBar = ({ onFollowUpQuestion }: ChatBarProps) => {
             <Button
               type="submit"
               size="sm"
-              disabled={!query.trim()}
+              disabled={!query.trim() || (!isOnChatPage && !insuranceUrl)}
               className="shrink-0"
             >
               <Send className="h-4 w-4" />

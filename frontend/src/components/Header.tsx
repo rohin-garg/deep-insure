@@ -125,7 +125,7 @@ export const Header = ({ onShare, onLogoClick }: HeaderProps) => {
             className="text-2xl font-bold text-primary cursor-pointer hover:opacity-80 transition-opacity"
             onClick={handleLogoClick}
           >
-            DeepInsure <span className="text-sm text-muted-foreground font-normal">by AI Assistant</span>
+            DeepInsure <span className="text-sm text-muted-foreground font-normal">by <a href="https://www.linkedin.com/in/rohin-garg-362bb8226/" target="_blank" rel="noopener noreferrer" className="hover:text-primary underline">Rohin</a>, <a href="https://www.linkedin.com/in/jeremy-luu1/" target="_blank" rel="noopener noreferrer" className="hover:text-primary underline">Jeremy</a>, <a href="https://www.linkedin.com/in/brian-zhang-96b120378/" target="_blank" rel="noopener noreferrer" className="hover:text-primary underline">Brian</a>, and <a href="https://www.linkedin.com/in/william-zhao-53545b233/" target="_blank" rel="noopener noreferrer" className="hover:text-primary underline">William</a></span>
           </h1>
         </div>
         
