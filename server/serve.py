@@ -350,6 +350,7 @@ def raw_search(query: str, raw_text: str) -> List[str]:
     
     # Score each block
     scored_blocks = []
+    run_model = True
     for block in blocks:
         score = 0
         block_lower = block.lower()
@@ -366,7 +367,31 @@ def raw_search(query: str, raw_text: str) -> List[str]:
                 jaccard = len(keyword_words.intersection(block_words)) / len(keyword_words.union(block_words))
                 score += jaccard * 100
         
-        scored_blocks.append((score, block))
+        # Call custom model to get relevance probability
+        if run_model:
+            try:
+                model_response = requests.post(
+                    "https://zhangbrwubb--insurance-fraud-detector-1B-gpu-serve.modal.run/predict",
+                    headers={"Content-Type": "application/json"},
+                    json={"features": block[:50]},  # Use first 50 chars as features
+                    timeout=5
+                )
+                
+                if model_response.status_code == 200:
+                    relevance_prob = model_response.json().get("prob", 0.0)
+                    # Only add to scored_blocks if relevance probability >= 0.1
+                    if relevance_prob >= 0.1:
+                        scored_blocks.append((score, block))
+                else:
+                    # If model call fails, fall back to adding the block
+                    scored_blocks.append((score, block))
+            except Exception as e:
+                # If model call fails, fall back to adding the block
+                print(f"Model call failed: {e}")
+                scored_blocks.append((score, block))
+            run_model = False
+        else:
+            scored_blocks.append((score, block))
     
     # Sort by score and return top 10
     scored_blocks.sort(key=lambda x: x[0], reverse=True)
