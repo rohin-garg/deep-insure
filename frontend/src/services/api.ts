@@ -2,6 +2,8 @@ import { InsuranceSection } from "@/utils/mockData";
 
 // Remove trailing slash if present
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '');
+console.log('🔗 API_BASE_URL configured as:', API_BASE_URL);
+console.log('🔗 VITE_API_BASE_URL from env:', import.meta.env.VITE_API_BASE_URL);
 
 // Backend response types
 interface BackendSummaryPage {

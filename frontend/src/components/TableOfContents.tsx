@@ -24,8 +24,10 @@ export const TableOfContents = ({ markdown = "", className }: TableOfContentsPro
       return;
     }
 
-    const headerRegex = /^(#{1,6})\s+(.+)$/gm;
     const items: TOCItem[] = [];
+
+    // Extract traditional markdown headers (# ## ###)
+    const headerRegex = /^(#{1,6})\s+(.+)$/gm;
     let match;
 
     while ((match = headerRegex.exec(markdown)) !== null) {
@@ -36,9 +38,38 @@ export const TableOfContents = ({ markdown = "", className }: TableOfContentsPro
         .replace(/[^a-z0-9\s-]/g, '')
         .replace(/\s+/g, '-')
         .trim();
-      
+
       items.push({ id, text, level });
     }
+
+    // Extract bold text at start of lines/paragraphs as h4 headings
+    // Look for bold text that appears to be standalone headings
+    const lines = markdown.split('\n');
+    lines.forEach(line => {
+      const trimmedLine = line.trim();
+      // Match lines that start with ** and end with ** (standalone bold text)
+      const boldMatch = trimmedLine.match(/^\*\*([^*]+)\*\*$/);
+      if (boldMatch) {
+        const text = boldMatch[1].trim();
+        const id = text
+          .toLowerCase()
+          .replace(/[^a-z0-9\s-]/g, '')
+          .replace(/\s+/g, '-')
+          .trim();
+
+        // Check if we already have this heading from traditional markdown
+        if (!items.some(item => item.id === id)) {
+          items.push({ id, text, level: 4 });
+        }
+      }
+    });
+
+    // Sort items by their appearance order in the text
+    items.sort((a, b) => {
+      const aPos = markdown.indexOf(a.text);
+      const bPos = markdown.indexOf(b.text);
+      return aPos - bPos;
+    });
 
     setTocItems(items);
   }, [markdown]);
