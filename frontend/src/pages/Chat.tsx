@@ -664,20 +664,16 @@ The plan provides comprehensive coverage with extensive additional benefits beyo
             className="flex-1 p-6 scrollable" 
             ref={chatScrollRef}
           >
-            <div className="mb-6 pb-4 border-b border-border">
-              <Link to="/?view=summary">
-                <Button variant="ghost" size="sm" className="mb-4">
-                  <ArrowLeft className="h-4 w-4 mr-2" />
+            <div className="p-4">
+              <h2 className="text-base font-semibold text-foreground">
+                <Link to="/?view=summary" className="inline-flex items-center hover:opacity-80 transition-all duration-200 group">
+                  <ArrowLeft className="h-4 w-4 mr-2 group-hover:-translate-x-1 transition-transform duration-200" />
                   Back to Summary
-                </Button>
-              </Link>
-              
-              <p className="text-muted-foreground">
-                Chat AI Generated Title
-              </p>
+                </Link>
+              </h2>
             </div>
 
-            <div className="space-y-6">
+            <div className="space-y-6 pb-32">
               {messages.length > 0 ? (
                 messages.map((message) => (
                   <div key={message.id} className="flex items-start gap-3">
@@ -798,15 +794,15 @@ The plan provides comprehensive coverage with extensive additional benefits beyo
           className="flex flex-col"
           style={{ width: `${100 - dividerPosition}%` }}
         >
-          <div className="p-4 border-b border-border">
-            <h2 className="text-lg font-semibold text-foreground">Sources</h2>
+          <div className="p-4">
+            <h2 className="text-2xl font-semibold text-foreground mt-2">Sources</h2>
           </div>
           
           <div 
-            className="flex-1 p-4 scrollable"
+            className="flex-1 px-4 pb-4 pt-2 scrollable"
           >
             {sources.length > 0 ? (
-              <div className="space-y-4">
+              <div className="space-y-4 pb-32">
                 {sources.map((source, index) => {
                   const isCollapsed = collapsedSources.has(index);
                   const isHighlighted = highlightedSource === index;
