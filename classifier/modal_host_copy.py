@@ -168,7 +168,7 @@ MODEL_DIR = Path("/models")
 CHECKPOINT_FILE = MODEL_DIR / "state_dict_100_2e-3.pth"
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
-tokenizer = AutoTokenizer.from_pretrained("google/gemma-3-12b-it")
+# tokenizer = AutoTokenizer.from_pretrained("google/gemma-3-12b-it")
 
 # -------------------
 # Model container class
@@ -191,8 +191,8 @@ class ModelContainer:
 
     def predict(self, features):
         with torch.no_grad():
-            x = torch.tensor(features, dtype=torch.float32).unsqueeze(0)
-            y = self.model(x).item()
+            # x = torch.tensor(features, dtype=torch.float32).unsqueeze(0)
+            y = self.model.predict(features).item()
         return y
 
 web_app = FastAPI()
@@ -200,12 +200,15 @@ model_container = ModelContainer()  # global
 
 @web_app.post("/predict")
 def predict(req: dict):
-    text = req["features"]  # this is a string like "This is a sample insurance claim."
-    # tokenize the input text
-    inputs = tokenizer(text, return_tensors="pt", padding=True, truncation=True)
-    # pass tokenized input to your model
-    y = model_container.predict(inputs)  
-    return {"fraud_probability": y}
+    text = req["features"]  # string input
+    # inputs = tokenizer(text, return_tensors="pt", padding=True, truncation=True)
+    # print("inputs=", inputs)
+    # feed tokenized input to the model
+    y = model_container.predict(text)
+    # if isinstance(y, torch.Tensor):
+    #     y = y.item()
+    # return {"fraud_probability": y}
+    return {"prob": y["probability"]}
     # return {"fraud_probability": model_container.predict(req["features"])}
 
 @app.function(
@@ -218,3 +221,15 @@ def predict(req: dict):
 @modal.asgi_app()
 def serve():
     return web_app
+
+
+# # local testing
+# if __name__ == "__main__":
+#     # Run the function and get the result
+#     f = my_function.spawn()  # runs remotely
+#     # Stream logs to local terminal
+#     for log in f.logs(stream=True):
+#         print(log)
+#     # Optionally get the return value
+#     result = f.wait()
+#     print("Result:", result)
