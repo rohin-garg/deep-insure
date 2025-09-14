@@ -2,6 +2,29 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Toast animation */
+@keyframes slideInFromRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+/* Wobble animation for share icon */
+@keyframes wobble {
+  0% { transform: rotate(0deg) scale(1); }
+  15% { transform: rotate(-5deg) scale(1.05); }
+  30% { transform: rotate(3deg) scale(1.1); }
+  45% { transform: rotate(-3deg) scale(1.05); }
+  60% { transform: rotate(2deg) scale(1.1); }
+  75% { transform: rotate(-1deg) scale(1.05); }
+  100% { transform: rotate(0deg) scale(1); }
+}
+
 /* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
 All colors MUST be HSL.
 */

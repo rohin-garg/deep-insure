@@ -58,9 +58,9 @@ export const ChatBar = ({ onFollowUpQuestion, insuranceUrl }: ChatBarProps) => {
               type="submit"
               size="sm"
               disabled={!query.trim() || (!isOnChatPage && !insuranceUrl)}
-              className="shrink-0"
+              className="shrink-0 group"
             >
-              <Send className="h-4 w-4" />
+              <Send className="h-4 w-4 transition-transform duration-200 ease-out group-hover:-translate-y-1 group-hover:translate-x-1" />
             </Button>
           </div>
         </div>
