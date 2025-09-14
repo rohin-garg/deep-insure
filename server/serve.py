@@ -106,6 +106,7 @@ init_database()
 
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 EXA_API_KEY = os.getenv("EXA_API_KEY")
+MODEL_ID = "claude-3-5-haiku-latest"
 
 # Initialize Anthropic client
 anthropic_client = anthropic.Anthropic()
@@ -159,11 +160,159 @@ async def get_general_context(url: str) -> str:
         print(f"Error fetching context for {url}: {e}")
         return ""
 
+def generate_personalized_search_keywords(context_items: List[ContextItem]) -> List[str]:
+    """Generate personalized search keywords based on the specific insurance plan context"""
+    try:
+        # Combine all context text
+        combined_context = "\n\n".join([item.relevant_text for item in context_items])
+        
+        # Limit context to avoid token limits
+        if len(combined_context) > 8000:
+            combined_context = combined_context[:8000]
+        
+        prompt = f"""Based on this specific insurance plan information, generate 6 targeted search queries that would help find real user experiences, reviews, and discussions about this particular plan or very similar plans.
+
+Insurance Plan Context:
+{combined_context}
+
+Generate search queries that are:
+1. Specific to this plan type, provider, or similar coverage
+2. Focused on real user experiences and reviews
+3. Targeted at finding discussions on Reddit, forums, or review sites
+4. Include specific plan features, benefits, or concerns mentioned in the context
+
+Return exactly 6 search queries, one per line, without numbering or bullets. Focus on the specific plan name, provider, coverage details, and unique features mentioned in the context."""
+
+        response = anthropic_client.messages.create(
+            model=MODEL_ID,
+            max_tokens=300,
+            messages=[
+                {"role": "user", "content": prompt}
+            ]
+        )
+        
+        # Parse the response into individual queries
+        queries = [q.strip() for q in response.content[0].text.strip().split('\n') if q.strip()]
+        
+        # Ensure we have exactly 6 queries, pad with generic ones if needed
+        while len(queries) < 6:
+            queries.append("insurance plan review user experience")
+        
+        return queries[:6]
+        
+    except Exception as e:
+        print(f"Error generating personalized keywords: {e}")
+        # Fallback to generic queries
+        return [
+            "reddit insurance plan review user experience",
+            "forum discussion insurance coverage real experience", 
+            "customer review insurance plan pros cons",
+            "reddit healthcare insurance worth it",
+            "user experience insurance claim process",
+            "forum insurance plan comparison real users"
+        ]
+
+async def get_diverse_sources_context(insurance_plan_url: str, base_query: str, context_items: List[ContextItem] = None) -> List[ContextItem]:
+    """Get additional context from diverse sources like Reddit, forums, and user experiences using Exa API"""
+    try:
+        # Extract insurance plan name/type from URL for better search queries
+        plan_identifier = insurance_plan_url.split('/')[-1] if '/' in insurance_plan_url else insurance_plan_url
+        
+        # Generate personalized search queries if context is provided
+        if context_items:
+            print("Generating personalized search keywords based on insurance plan context...")
+            search_queries = generate_personalized_search_keywords(context_items)
+            print(f"Generated personalized queries: {search_queries}")
+        else:
+            # Fallback to generic search queries
+            search_queries = [
+                f"reddit insurance plan review {base_query} user experience",
+                f"forum discussion {base_query} insurance coverage real experience",
+                f"customer review {base_query} insurance plan pros cons",
+                f"reddit healthcare insurance {base_query} worth it",
+                f"user experience {base_query} insurance claim process",
+                f"forum {base_query} insurance plan comparison real users"
+            ]
+        
+        # Search using Exa API for each query
+        headers = {
+            'x-api-key': EXA_API_KEY,
+            'Content-Type': 'application/json'
+        }
+        
+        diverse_context_items = []
+        
+        async with aiohttp.ClientSession() as session:
+            for query in search_queries:
+                try:
+                    # Use Exa search API to find relevant URLs
+                    search_payload = {
+                        "query": query,
+                        "numResults": 3,
+                        "includeDomains": ["reddit.com", "quora.com", "healthline.com", "consumerreports.org"],
+                        "type": "neural"
+                    }
+                    
+                    async with session.post('https://api.exa.ai/search', 
+                                          headers=headers, 
+                                          json=search_payload) as search_response:
+                        if search_response.status == 200:
+                            search_data = await search_response.json()
+                            urls = [result['url'] for result in search_data.get('results', [])]
+                            
+                            if urls:
+                                # Get content from found URLs
+                                content_payload = {
+                                    "urls": urls,
+                                    "text": True,
+                                    "highlights": {
+                                        "numSentences": 3,
+                                        "highlightsPerUrl": 3,
+                                        "query": base_query
+                                    }
+                                }
+                                
+                                async with session.post('https://api.exa.ai/contents',
+                                                      headers=headers,
+                                                      json=content_payload) as content_response:
+                                    if content_response.status == 200:
+                                        content_data = await content_response.json()
+                                        
+                                        for result in content_data.get('results', []):
+                                            if result.get('text'):
+                                                # Use highlights if available, otherwise use raw text excerpt
+                                                relevant_text = ""
+                                                if result.get('highlights'):
+                                                    relevant_text = " ".join(result['highlights'])
+                                                else:
+                                                    # Take first 1000 chars of text
+                                                    relevant_text = result['text'][:1000]
+                                                
+                                                if relevant_text.strip():
+                                                    diverse_context_items.append(ContextItem(
+                                                        url=result['url'],
+                                                        relevant_text=relevant_text
+                                                    ))
+                    
+                    # Add small delay between requests to be respectful
+                    await asyncio.sleep(0.5)
+                    
+                except Exception as e:
+                    print(f"Error searching for query '{query}': {e}")
+                    continue
+        
+        print(diverse_context_items)
+        return diverse_context_items
+        
+    except Exception as e:
+        print(f"Error getting diverse sources context: {e}")
+        return []
+
 def extract_keywords_with_llm(query: str) -> List[str]:
     """Extract keywords from query using LLM"""
     try:
         response = anthropic_client.messages.create(
-            model="claude-3-5-sonnet-20241022",
+            model=MODEL_ID,
             max_tokens=100,
             messages=[
                 {"role": "user", "content": f"Extract 5-10 key search terms from this query. Return only the terms separated by commas: {query}"}
@@ -421,7 +570,7 @@ async def get_insurance_context(insurance_plan_url: str, query: str) -> List[Con
                 
                 pdf_text = await extract_pdf_text(pdf_url)
                 if pdf_text:
-                    print(pdf_url, pdf_text)
+                    # print(pdf_url, pdf_text)
                     # Use raw_search on the PDF text to find relevant blocks
                     relevant_blocks = raw_search(query, pdf_text)
                     
@@ -463,18 +612,17 @@ def generate_summary_with_llm(context_items: List[ContextItem]) -> Dict[str, Any
         
         prompt = f"""
         Please analyze the following insurance plan information and create a structured summary in markdown format.
-        Use single # headers for main sections (e.g., # Coverage, # Costs, # Benefits, etc.).
-        Provide detailed content under each header.
+        Provide detailed content under each header. You should include ALL relevant information, be as comprehensive as possible.
         
         Insurance Plan Information:
         {combined_text}
         
         Create a comprehensive summary covering key aspects like coverage, costs, benefits, etc.
-        Return only markdown with no additional text.
+        Return only markdown with no additional text. Use single hashtags for the main sections, and do not use any hashtags for the title.
         """
         
         response = anthropic_client.messages.create(
-            model="claude-3-5-sonnet-20241022",
+            model=MODEL_ID,
             max_tokens=MAX_TOKENS,
             messages=[
                 {"role": "user", "content": prompt}
@@ -482,6 +630,9 @@ def generate_summary_with_llm(context_items: List[ContextItem]) -> Dict[str, Any
         )
         
         markdown_text = response.content[0].text.strip()
+        print("===== BEGIN MARKDOWN TEXT =====")
+        print(markdown_text)
+        print("===== END MARKDOWN TEXT =====")
         
         # Parse markdown to extract sections with single # headers
         sections = []
@@ -491,6 +642,8 @@ def generate_summary_with_llm(context_items: List[ContextItem]) -> Dict[str, Any
         for line in markdown_text.split('\n'):
             # Check if line is a single # header (not ## or ###)
             if line.startswith('# ') and not line.startswith('## '):
+                continue
+            elif line.startswith("## ") and not line.startswith("### "):
                 # Save previous section if exists
                 if current_header is not None:
                     sections.append({
@@ -557,7 +710,7 @@ def generate_answer_with_llm(query: str, context_items: List[ContextItem]) -> st
         """
         
         response = anthropic_client.messages.create(
-            model="claude-3-5-sonnet-20241022",
+            model=MODEL_ID,
             max_tokens=MAX_TOKENS,
             messages=[
                 {"role": "user", "content": prompt}
@@ -626,13 +779,21 @@ async def get_full_summary(insurance_plan_url: str = Query(..., description="URL
     """Get full summary of an insurance plan"""
     try:
         # Get context for the insurance plan (using a general query)
-        context_items = await get_insurance_context(insurance_plan_url, "insurance plan summary coverage benefits costs")
+        base_query = "insurance plan summary coverage benefits costs"
+        context_items = await get_insurance_context(insurance_plan_url, base_query)
         
         if not context_items:
             return {"body": [{"page_1_header": "No Data", "page_1_text": "Unable to retrieve information for this insurance plan URL."}]}
         
-        # Generate summary using LLM
-        summary = generate_summary_with_llm(context_items)
+        # Get additional context from diverse sources (Reddit, forums, user experiences)
+        print("Gathering additional context from diverse sources...")
+        diverse_context = await get_diverse_sources_context(insurance_plan_url, base_query, context_items)
+        
+        # Combine original context with diverse sources
+        all_context_items = context_items + diverse_context
+        
+        # Generate summary using LLM with enhanced context
+        summary = generate_summary_with_llm(all_context_items)
         
         return summary
     
@@ -717,12 +878,14 @@ def test_functions():
     query = "what benefits does this plan offer? what important things are NOT covered?"
     # res = asyncio.run(get_general_context(URL))
     # res = asyncio.run(get_insurance_context(URL, query))
-    # res = asyncio.run(get_full_summary(URL))
-    res = asyncio.run(ask_query(URL, query))
+    res = asyncio.run(get_full_summary(URL))
+    # obj = asyncio.run(generate_chat_id(URL))
+    # id = obj["id"]
+    # res = asyncio.run(ask_query(id, query))
     print(res)
     import code; code.interact(local=dict(globals(), **locals()))
 
 if __name__ == "__main__":
-    test_functions()
-    # import uvicorn
-    # uvicorn.run(app, host="0.0.0.0", port=8000)
+    # test_functions()
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
