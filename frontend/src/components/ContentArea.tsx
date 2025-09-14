@@ -10,10 +10,9 @@ interface ContentAreaProps {
   onCitationClick?: (link: string) => void;
   enableTypingAnimation?: boolean;
   loadingUrl?: string;
-  isHighlighted?: boolean;
 }
 
-export const ContentArea = ({ section, loading, onCitationClick, enableTypingAnimation = false, loadingUrl = '', isHighlighted = false }: ContentAreaProps) => {
+export const ContentArea = ({ section, loading, onCitationClick, enableTypingAnimation = false, loadingUrl = '' }: ContentAreaProps) => {
   const [displayText, setDisplayText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [loadingText, setLoadingText] = useState('');
@@ -21,6 +20,7 @@ export const ContentArea = ({ section, loading, onCitationClick, enableTypingAni
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const loadingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const dotIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
 
   // Flavor text for loading states with URL
   const loadingMessages = [
@@ -154,11 +154,7 @@ export const ContentArea = ({ section, loading, onCitationClick, enableTypingAni
 
   return (
     <div className="flex-1 scrollable">
-      <article className={`max-w-4xl mx-auto p-8 prose prose-slate dark:prose-invert prose-headings:text-foreground prose-p:text-foreground prose-strong:text-foreground prose-li:text-foreground transition-all duration-500 ${
-        isHighlighted 
-          ? 'bg-primary/5 border-2 border-primary rounded-lg shadow-lg' 
-          : ''
-      }`}>
+      <article className="max-w-4xl mx-auto p-8 pb-32 prose prose-slate dark:prose-invert prose-headings:text-foreground prose-p:text-foreground prose-strong:text-foreground prose-li:text-foreground">
         <ReactMarkdown
           components={{
             a: ({ href, children }) => (

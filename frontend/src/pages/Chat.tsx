@@ -32,6 +32,8 @@ const Chat = () => {
   const [isLoadingNewMessage, setIsLoadingNewMessage] = useState(false);
   const [chatId, setChatId] = useState<string | null>(null);
   const [insuranceUrl, setInsuranceUrl] = useState<string>('');
+  const [isLoadingSources, setIsLoadingSources] = useState(false);
+  const [visibleSources, setVisibleSources] = useState<Set<number>>(new Set());
   const [dividerPosition, setDividerPosition] = useState(45); // Percentage for left panel
   const [isDragging, setIsDragging] = useState(false);
   const [collapsedSources, setCollapsedSources] = useState<Set<number>>(new Set());
@@ -221,6 +223,25 @@ const Chat = () => {
       }
       return newSet;
     });
+  };
+
+  const animateSourcesLoading = (sourceCards: SourceCard[]) => {
+    setIsLoadingSources(true);
+    setSources(sourceCards);
+    setVisibleSources(new Set()); // Start with all sources hidden
+    setCollapsedSources(new Set(sourceCards.map((_, index) => index))); // Start all collapsed
+    
+    // Animate sources appearing one by one
+    sourceCards.forEach((_, index) => {
+      setTimeout(() => {
+        setVisibleSources(prev => new Set([...prev, index]));
+      }, index * 200); // 200ms delay between each source
+    });
+    
+    // Finish loading after all sources are visible
+    setTimeout(() => {
+      setIsLoadingSources(false);
+    }, sourceCards.length * 200 + 500);
   };
 
   const handleCitationClick = (sourceIndex: number) => {
@@ -579,15 +600,23 @@ Would you like me to elaborate on any specific aspect of your coverage?`;
                 {sources.map((source, index) => {
                   const isCollapsed = collapsedSources.has(index);
                   const isHighlighted = highlightedSource === index;
+                  const isVisible = visibleSources.has(index);
                   return (
                     <div 
                       key={index} 
                       data-source-index={index}
-                      className={`bg-card border rounded-lg overflow-hidden transition-all duration-300 ${
+                      className={`bg-card border rounded-lg overflow-hidden transition-all duration-500 transform ${
+                        isVisible 
+                          ? 'opacity-100 translate-y-0' 
+                          : 'opacity-0 translate-y-4'
+                      } ${
                         isHighlighted 
                           ? 'border-primary bg-primary/5 shadow-lg' 
                           : 'border-border'
                       }`}
+                      style={{
+                        transitionDelay: isVisible ? '0ms' : `${index * 200}ms`
+                      }}
                     >
                       <div className="p-4 border-b border-border bg-muted/50">
                         <div className="flex items-center justify-between">

@@ -136,6 +136,7 @@ const Index = () => {
 
   const currentSection = summary.find(section => section.id === activeSection);
 
+
   return (
     <div className="min-h-screen bg-background">
       <Header onShare={handleShare} onLogoClick={handleLogoClick} />
@@ -144,7 +145,7 @@ const Index = () => {
         <URLInput onSubmit={handleUrlSubmit} />
       ) : (
         <>
-          <div className="flex h-[calc(100vh-4rem)]">
+          <div className="flex h-[calc(100vh-4rem)] min-h-0">
             <Navigation
               sections={summary}
               activeSection={activeSection}
@@ -168,9 +169,6 @@ const Index = () => {
           onCitationClick={handleCitationClick}
           enableTypingAnimation={true}
           loadingUrl={currentInsuranceUrl}
-          isHighlighted={isSectionHighlighted}
-          loadingText={loadingText}
-          scrambleRef={scrambleRef}
         />
             
             <TableOfContents
