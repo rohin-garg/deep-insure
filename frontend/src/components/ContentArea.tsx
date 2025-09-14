@@ -26,10 +26,10 @@ export const ContentArea = ({ section, loading, onCitationClick, enableTypingAni
   // Scramble animation for loading text
   const { ref: scrambleRef } = useScramble({
     text: loadingText,
-    speed: 0.6,
+    speed: 0.8,
     tick: 1,
     step: 1,
-    scramble: 8,
+    scramble: 5,
     seed: 2,
   });
 
@@ -76,14 +76,14 @@ export const ContentArea = ({ section, loading, onCitationClick, enableTypingAni
   // Start loading text rotation when loading starts
   useEffect(() => {
     if (loading && loadingUrl) {
-      setLoadingText(loadingMessages[0]);
-      
-      // Rotate through loading messages
       let messageIndex = 0;
+      setLoadingText(loadingMessages[messageIndex]);
+
+      // Rotate through loading messages
       loadingIntervalRef.current = setInterval(() => {
         messageIndex = (messageIndex + 1) % loadingMessages.length;
         setLoadingText(loadingMessages[messageIndex]);
-      }, 300);
+      }, 2500);
 
       // Start dot animation
       dotIntervalRef.current = setInterval(() => {
@@ -106,7 +106,7 @@ export const ContentArea = ({ section, loading, onCitationClick, enableTypingAni
         clearInterval(dotIntervalRef.current);
       }
     };
-  }, [loading, loadingUrl]);
+  }, [loading, loadingUrl, loadingMessages]);
 
   // Start typing animation when section changes
   useEffect(() => {

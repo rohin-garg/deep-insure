@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
-import { useScramble } from "use-scramble";
 import { Header } from "@/components/Header";
 import { URLInput } from "@/components/URLInput";
 import { Navigation } from "@/components/Navigation";
@@ -16,37 +15,11 @@ const Index = () => {
   const [currentView, setCurrentView] = useState<'input' | 'wiki'>('input');
   const [activeSection, setActiveSection] = useState<string>('');
   const [loading, setLoading] = useState(false);
-  const [loadingText, setLoadingText] = useState('');
   const [summary, setSummary] = useState<InsuranceSection[]>([]);
   const [currentInsuranceUrl, setCurrentInsuranceUrl] = useState<string>('');
   const [isSectionHighlighted, setIsSectionHighlighted] = useState(false);
-  const [isScrambling, setIsScrambling] = useState(false);
   const { toast } = useToast();
 
-  // Scramble animation for loading text
-  const { ref: scrambleRef } = useScramble({
-    text: loadingText,
-    speed: 0.5,
-    tick: 1,
-    step: 1,
-    scramble: 4,
-    seed: 2,
-    playOnMount: false,
-    onAnimationStart: () => setIsScrambling(true),
-    onAnimationComplete: () => setIsScrambling(false),
-  });
-
-  // Flavor text for loading states
-  const loadingMessages = useMemo(() => [
-    "Analyzing your insurance policy...",
-    "Extracting key coverage details...",
-    "Processing policy terms and conditions...",
-    "Identifying important benefits and limitations...",
-    "Generating comprehensive summary...",
-    "Organizing coverage sections...",
-    "Preparing interactive navigation...",
-    "Almost ready with your personalized wiki..."
-  ], []);
   // Check URL parameters to determine initial view
   useEffect(() => {
     const viewParam = searchParams.get('view');
@@ -60,23 +33,6 @@ const Index = () => {
     setCurrentInsuranceUrl(url);
     setCurrentView('wiki');
     setLoading(true);
-    setLoadingText(loadingMessages[0]);
-
-    // Rotate through loading messages with scramble animation
-    let messageIndex = 0;
-    const rotateMessages = () => {
-      // Show current message for 2 seconds
-      setTimeout(() => {
-        if (loading) {
-          // Move to next message
-          messageIndex = (messageIndex + 1) % loadingMessages.length;
-          setLoadingText(loadingMessages[messageIndex]);
-          rotateMessages(); // Schedule next rotation
-        }
-      }, 2500);
-    };
-
-    rotateMessages(); // Start the rotation
 
     try {
       const data = await api.getFullSummary(url);
@@ -104,9 +60,9 @@ const Index = () => {
           description: "Using mock data - API unavailable. Check console for details.",
           variant: "default"
         });
-      }, 4000); // Longer delay to show loading messages
+      }, 4000); // Delay to show loading animation
     }
-  }, [setSearchParams, toast, loadingMessages]);
+  }, [setSearchParams, toast]);
 
   const handleSectionClick = (sectionId: string) => {
     setActiveSection(sectionId);
