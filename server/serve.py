@@ -952,6 +952,6 @@ def test_functions():
     import code; code.interact(local=dict(globals(), **locals()))
 
 if __name__ == "__main__":
-    test_functions()
-    # import uvicorn
-    # uvicorn.run(app, host="0.0.0.0", port=8000)
+    # test_functions()
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
