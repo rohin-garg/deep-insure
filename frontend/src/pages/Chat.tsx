@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { ChatBar } from "@/components/ChatBar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { EmbeddedWebsite } from "@/components/EmbeddedWebsite";
 import { api } from "@/services/api";
 import { useToast } from "@/hooks/use-toast";
 import { mockAIResponse, mockFollowUpResponses, mockSourceCards, mockChatHistory, generateMockChatId } from "@/utils/mockData";
@@ -906,53 +907,11 @@ The plan provides comprehensive coverage with extensive additional benefits beyo
                         }`}
                       >
                         <div className="p-2">
-                          <div className="bg-muted/30 rounded border overflow-hidden relative">
-                            <div className="absolute inset-0 flex items-center justify-center bg-muted/50 z-10 iframe-loading">
-                              <div className="flex items-center gap-2 text-muted-foreground text-sm">
-                                <div className="animate-spin w-4 h-4 border-2 border-current border-t-transparent rounded-full"></div>
-                                Loading website...
-                              </div>
-                            </div>
-                            <iframe
-                              src={source.url}
-                              title={`Source: ${new URL(source.url).hostname}`}
-                              className="w-full h-[500px] border-0"
-                              sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
-                              loading="lazy"
-                              onLoad={(e) => {
-                                // Hide loading overlay when iframe loads successfully
-                                const iframe = e.target as HTMLIFrameElement;
-                                const loadingOverlay = iframe.parentNode?.querySelector('.iframe-loading') as HTMLElement;
-                                if (loadingOverlay) {
-                                  loadingOverlay.style.display = 'none';
-                                }
-                              }}
-                              onError={(e) => {
-                                // Fallback: show minimal error with external link
-                                const iframe = e.target as HTMLIFrameElement;
-                                const container = iframe.parentNode as HTMLElement;
-                                container.innerHTML = `
-                                  <div class="flex items-center justify-center h-[500px] bg-muted/20 rounded">
-                                    <div class="text-center p-6">
-                                      <div class="w-12 h-12 mx-auto mb-3 bg-orange-100 dark:bg-orange-900 rounded-lg flex items-center justify-center">
-                                        <svg class="w-6 h-6 text-orange-600 dark:text-orange-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L4.268 18.5c-.77.833.192 2.5 1.732 2.5z" />
-                                        </svg>
-                                      </div>
-                                      <p class="text-muted-foreground mb-4 text-sm">This website cannot be embedded</p>
-                                      <a href="${source.url}" target="_blank" rel="noopener noreferrer"
-                                         class="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors">
-                                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                                        </svg>
-                                        Open in New Tab
-                                      </a>
-                                    </div>
-                                  </div>
-                                `;
-                              }}
-                            />
-                          </div>
+                          <EmbeddedWebsite
+                            url={source.url}
+                            title={`Source: ${source.title}`}
+                            className="w-full h-[500px]"
+                          />
                         </div>
                       </div>
                     </div>
