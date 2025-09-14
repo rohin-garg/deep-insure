@@ -3,7 +3,6 @@ import { InsuranceSection } from "@/utils/mockData";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AlertCircle, Loader2, Search, Brain, Zap } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
-import { useScramble } from "use-scramble";
 
 interface ContentAreaProps {
   section?: InsuranceSection;
@@ -11,40 +10,16 @@ interface ContentAreaProps {
   onCitationClick?: (link: string) => void;
   enableTypingAnimation?: boolean;
   loadingUrl?: string;
+  scrambleRef?: React.RefObject<HTMLElement>;
 }
 
-export const ContentArea = ({ section, loading, onCitationClick, enableTypingAnimation = false, loadingUrl = '' }: ContentAreaProps) => {
+export const ContentArea = ({ section, loading, onCitationClick, enableTypingAnimation = false, loadingUrl = '', scrambleRef }: ContentAreaProps) => {
   const [displayText, setDisplayText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
-  const [loadingText, setLoadingText] = useState('');
   const [dotCount, setDotCount] = useState(1);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const loadingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const dotIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Scramble animation for loading text
-  const { ref: scrambleRef } = useScramble({
-    text: loadingText,
-    speed: 0.6,
-    tick: 1,
-    step: 1,
-    scramble: 8,
-    seed: 2,
-  });
-
-
-  // Flavor text for loading states with URL
-  const loadingMessages = [
-    `Scanning ${loadingUrl}...`,
-    "Analyzing your insurance policy...",
-    "Extracting key coverage details...",
-    "Processing policy terms and conditions...",
-    "Identifying important benefits and limitations...",
-    "Generating comprehensive summary...",
-    "Organizing coverage sections...",
-    "Preparing interactive navigation...",
-    "Almost ready with your personalized wiki..."
-  ];
 
   // Word-by-word typing animation
   const typeText = (text: string) => {
@@ -72,40 +47,26 @@ export const ContentArea = ({ section, loading, onCitationClick, enableTypingAni
     typeNextWord();
   };
 
-  // Start loading text rotation when loading starts
+  // Simple dot animation for loading
   useEffect(() => {
-    if (loading && loadingUrl) {
-      setLoadingText(loadingMessages[0]);
-      
-      // Rotate through loading messages
-      let messageIndex = 0;
-      loadingIntervalRef.current = setInterval(() => {
-        messageIndex = (messageIndex + 1) % loadingMessages.length;
-        setLoadingText(loadingMessages[messageIndex]);
-      }, 300);
-
-      // Start dot animation
+    if (loading) {
       dotIntervalRef.current = setInterval(() => {
         setDotCount(prev => (prev % 3) + 1);
       }, 500);
     } else {
-      if (loadingIntervalRef.current) {
-        clearInterval(loadingIntervalRef.current);
-      }
       if (dotIntervalRef.current) {
         clearInterval(dotIntervalRef.current);
+        dotIntervalRef.current = null;
       }
     }
 
     return () => {
-      if (loadingIntervalRef.current) {
-        clearInterval(loadingIntervalRef.current);
-      }
       if (dotIntervalRef.current) {
         clearInterval(dotIntervalRef.current);
+        dotIntervalRef.current = null;
       }
     };
-  }, [loading, loadingUrl]);
+  }, [loading]);
 
   // Start typing animation when section changes
   useEffect(() => {
@@ -120,15 +81,13 @@ export const ContentArea = ({ section, loading, onCitationClick, enableTypingAni
       if (typingTimeoutRef.current) {
         clearTimeout(typingTimeoutRef.current);
       }
-      if (loadingIntervalRef.current) {
-        clearInterval(loadingIntervalRef.current);
-      }
       if (dotIntervalRef.current) {
         clearInterval(dotIntervalRef.current);
       }
     };
   }, []);
   if (loading) {
+    console.log('📺 ContentArea rendering loading state, scrambleRef available:', !!scrambleRef);
     return (
       <div className="flex-1 scrollable">
         <article className="max-w-4xl mx-auto p-8 prose prose-slate dark:prose-invert prose-headings:text-foreground prose-p:text-foreground prose-strong:text-foreground prose-li:text-foreground">

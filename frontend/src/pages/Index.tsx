@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useScramble } from "use-scramble";
 import { Header } from "@/components/Header";
@@ -20,20 +20,24 @@ const Index = () => {
   const [summary, setSummary] = useState<InsuranceSection[]>([]);
   const [currentInsuranceUrl, setCurrentInsuranceUrl] = useState<string>('');
   const [isSectionHighlighted, setIsSectionHighlighted] = useState(false);
-  const [isScrambling, setIsScrambling] = useState(false);
   const { toast } = useToast();
+  const loadingRotationRef = useRef(false);
 
   // Scramble animation for loading text
-  const { ref: scrambleRef } = useScramble({
+  const { ref: scrambleRef, replay } = useScramble({
     text: loadingText,
     speed: 0.5,
     tick: 1,
     step: 1,
-    scramble: 4,
+    scramble: 3,
     seed: 2,
-    playOnMount: false,
-    onAnimationStart: () => setIsScrambling(true),
-    onAnimationComplete: () => setIsScrambling(false),
+    playOnMount: true,
+    onAnimationStart: () => {
+      console.log('🎬 Scramble animation started for:', loadingText);
+    },
+    onAnimationComplete: () => {
+      console.log('✅ Scramble animation completed for:', loadingText);
+    }
   });
 
   // Flavor text for loading states
@@ -56,30 +60,49 @@ const Index = () => {
     }
   }, [searchParams, summary]);
 
+  // Debug: Track loadingText changes
+  useEffect(() => {
+    console.log('📝 loadingText changed to:', loadingText);
+  }, [loadingText]);
+
   const handleUrlSubmit = useCallback(async (url: string) => {
     setCurrentInsuranceUrl(url);
     setCurrentView('wiki');
     setLoading(true);
+    loadingRotationRef.current = true;
+    console.log('🚀 Starting loading, setting first message:', loadingMessages[0]);
     setLoadingText(loadingMessages[0]);
 
     // Rotate through loading messages with scramble animation
     let messageIndex = 0;
     const rotateMessages = () => {
-      // Show current message for 2 seconds
       setTimeout(() => {
-        if (loading) {
+        if (loadingRotationRef.current) {
           // Move to next message
           messageIndex = (messageIndex + 1) % loadingMessages.length;
-          setLoadingText(loadingMessages[messageIndex]);
+          const newMessage = loadingMessages[messageIndex];
+          console.log(`🔄 Rotating to message ${messageIndex}:`, newMessage);
+          setLoadingText(newMessage);
+
+          // Trigger scramble animation
+          console.log('🎯 Calling replay function, replay available:', !!replay);
+          if (replay) {
+            replay();
+          }
+
           rotateMessages(); // Schedule next rotation
+        } else {
+          console.log('❌ Loading stopped, ending rotation');
         }
       }, 2500);
     };
 
+    console.log('⏰ Starting message rotation timer');
     rotateMessages(); // Start the rotation
 
     try {
       const data = await api.getFullSummary(url);
+      loadingRotationRef.current = false; // Stop rotation
       setSummary(data);
       setActiveSection(data[0]?.id || '');
       setLoading(false);
@@ -92,6 +115,7 @@ const Index = () => {
 
       // Fallback to mock data with realistic timing
       setTimeout(() => {
+        loadingRotationRef.current = false; // Stop rotation
         setSummary(mockSummary);
         setActiveSection(mockSummary[0]?.id || '');
         setLoading(false);
@@ -104,9 +128,9 @@ const Index = () => {
           description: "Using mock data - API unavailable. Check console for details.",
           variant: "default"
         });
-      }, 4000); // Longer delay to show loading messages
+      }, 10000); // Longer delay to show loading messages
     }
-  }, [setSearchParams, toast, loadingMessages]);
+  }, [setSearchParams, toast, loadingMessages, replay]);
 
   const handleSectionClick = (sectionId: string) => {
     setActiveSection(sectionId);
@@ -190,6 +214,7 @@ const Index = () => {
           onCitationClick={handleCitationClick}
           enableTypingAnimation={true}
           loadingUrl={currentInsuranceUrl}
+          scrambleRef={scrambleRef}
         />
             
             <TableOfContents
