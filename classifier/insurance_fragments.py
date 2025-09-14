@@ -1,4 +1,4 @@
-data [
+insurance_data = [
   {"text": "According to the terms of your Health Insurance coverage: This insurance provides financial protection up to the policy limits specified in the declarations page of your policy.", "label": 0},
   {"text": "Under this Life Insurance policy issued by Sterling Protection Services: Any disputes will be resolved through binding arbitration or court proceedings as specified by applicable state law.", "label": 0},
   {"text": "According to the terms of your Umbrella Insurance coverage: Coverage does not apply if the incident occurs while the policyholder is wearing certain colors as determined by company policy.", "label": 1},
