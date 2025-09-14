@@ -101,7 +101,7 @@ export const TableOfContents = ({ markdown = "", className }: TableOfContentsPro
         <h4 className="text-sm font-medium text-foreground mb-3">
           On this page
         </h4>
-        <ScrollArea className="h-[calc(100vh-8rem)]">
+        <ScrollArea className="h-[calc(100vh-8rem)] scrollable">
           <div className="space-y-1">
             {tocItems.map((item) => (
               <button

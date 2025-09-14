@@ -35,16 +35,16 @@ export const ChatBar = ({ onFollowUpQuestion }: ChatBarProps) => {
   };
 
   return (
-    <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 z-50 w-full max-w-2xl px-4">
+    <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 z-50 w-full max-w-2xl px-4">
       <form onSubmit={handleSubmit} className="relative">
-        <div className="bg-background/80 backdrop-blur-sm border border-border rounded-xl shadow-lg p-3">
-          <div className="flex items-center gap-2">
+        <div className="bg-[#e8e8e7]/90 dark:bg-[#201c1c]/90 backdrop-blur-sm border border-border rounded-xl shadow-lg p-4">
+          <div className="flex items-center gap-3">
             <Input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder={isOnChatPage ? "Ask a follow up question..." : "Ask about your insurance plan..."}
-              className="border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 text-base placeholder:text-muted-foreground/70"
+              className="border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 text-xl placeholder:text-muted-foreground/70 h-12"
             />
             <Button
               type="submit"

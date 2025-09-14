@@ -1,11 +1,10 @@
 import { useEffect, useState, useRef } from "react";
 import { useSearchParams, Link } from "react-router-dom";
 import { Header } from "@/components/Header";
-import { ArrowLeft, User, Bot } from "lucide-react";
+import { ArrowLeft, User, Bot, ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ChatBar } from "@/components/ChatBar";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface ChatMessage {
   id: string;
@@ -26,8 +25,12 @@ const Chat = () => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [sources, setSources] = useState<SourceCard[]>([]);
   const [isLoadingNewMessage, setIsLoadingNewMessage] = useState(false);
+  const [dividerPosition, setDividerPosition] = useState(45); // Percentage for left panel
+  const [isDragging, setIsDragging] = useState(false);
+  const [collapsedSources, setCollapsedSources] = useState<Set<number>>(new Set());
   const chatScrollRef = useRef<HTMLDivElement>(null);
   const sourcesScrollRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const q = searchParams.get("q");
@@ -58,6 +61,59 @@ const Chat = () => {
       }, 2000);
     }
   }, [searchParams]);
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleMouseMove = (e: MouseEvent) => {
+    if (!isDragging || !containerRef.current) return;
+    
+    const containerRect = containerRef.current.getBoundingClientRect();
+    const newPosition = ((e.clientX - containerRect.left) / containerRect.width) * 100;
+    
+    // Constrain between 20% and 80% to prevent panels from becoming too small
+    const constrainedPosition = Math.min(Math.max(newPosition, 20), 80);
+    setDividerPosition(constrainedPosition);
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+  };
+
+  useEffect(() => {
+    if (isDragging) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+    } else {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+  }, [isDragging]);
+
+  const toggleSourceCollapse = (index: number) => {
+    setCollapsedSources(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(index)) {
+        newSet.delete(index);
+      } else {
+        newSet.add(index);
+      }
+      return newSet;
+    });
+  };
 
   const handleFollowUpQuestion = (question: string) => {
     const userMessage: ChatMessage = {
@@ -168,12 +224,18 @@ Would you like me to elaborate on any specific aspect of your coverage?`;
     <div className="min-h-screen bg-background">
       <Header onShare={handleShare} />
       
-      <div className="flex h-[calc(100vh-4rem)]">
-        {/* Left Chat Section - 45% */}
-        <div className="w-[45%] border-r border-border flex flex-col">
-          <ScrollArea className="flex-1 p-6" ref={chatScrollRef}>
+      <div className="flex h-[calc(100vh-4rem)]" ref={containerRef}>
+        {/* Left Chat Section */}
+        <div 
+          className="border-r border-border flex flex-col"
+          style={{ width: `${dividerPosition}%` }}
+        >
+          <div 
+            className="flex-1 p-6 scrollable" 
+            ref={chatScrollRef}
+          >
             <div className="mb-6 pb-4 border-b border-border">
-              <Link to="/">
+              <Link to="/?view=summary">
                 <Button variant="ghost" size="sm" className="mb-4">
                   <ArrowLeft className="h-4 w-4 mr-2" />
                   Back to Summary
@@ -249,36 +311,72 @@ Would you like me to elaborate on any specific aspect of your coverage?`;
                 </div>
               )}
             </div>
-          </ScrollArea>
+          </div>
         </div>
 
-        {/* Right Sources Section - 55% */}
-        <div className="w-[55%] flex flex-col">
-          <ScrollArea className="flex-1 p-6" ref={sourcesScrollRef}>
-            <div className="mb-6 pb-4 border-b border-border">
-              <h2 className="text-lg font-semibold text-foreground">Sources & References</h2>
-              <p className="text-sm text-muted-foreground">Relevant documents and policy sections</p>
-            </div>
+        {/* Draggable Divider */}
+        <div
+          className={`w-1 bg-border hover:bg-primary/50 cursor-col-resize transition-colors duration-200 ${
+            isDragging ? 'bg-primary' : ''
+          }`}
+          onMouseDown={handleMouseDown}
+        />
+
+        {/* Right Sources Section */}
+        <div 
+          className="flex flex-col"
+          style={{ width: `${100 - dividerPosition}%` }}
+        >
+          <div className="p-4 border-b border-border">
+            <h2 className="text-lg font-semibold text-foreground">Sources</h2>
+          </div>
+          
+          <div 
+            className="flex-1 p-4 scrollable"
+          >
             {sources.length > 0 ? (
               <div className="space-y-4">
-                {sources.map((source, index) => (
-                  <div key={index} className="bg-card border border-border rounded-lg overflow-hidden">
-                    <div className="p-4 border-b border-border bg-muted/50">
-                      <div className="flex items-center justify-between">
-                        <h3 className="font-medium text-foreground">{source.title}</h3>
-                        <span className="text-xs text-muted-foreground px-2 py-1 bg-background rounded">
-                          {source.type}
-                        </span>
+                {sources.map((source, index) => {
+                  const isCollapsed = collapsedSources.has(index);
+                  return (
+                    <div key={index} className="bg-card border border-border rounded-lg overflow-hidden">
+                      <div className="p-4 border-b border-border bg-muted/50">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 w-6 p-0 hover:bg-muted"
+                              onClick={() => toggleSourceCollapse(index)}
+                            >
+                              {isCollapsed ? (
+                                <ChevronDown className="h-3 w-3" />
+                              ) : (
+                                <ChevronUp className="h-3 w-3" />
+                              )}
+                            </Button>
+                            <h3 className="font-medium text-foreground">{source.title}</h3>
+                          </div>
+                          <span className="text-xs text-muted-foreground px-2 py-1 bg-background rounded">
+                            {source.type}
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1 ml-8">{source.url}</p>
                       </div>
-                      <p className="text-xs text-muted-foreground mt-1">{source.url}</p>
-                    </div>
-                    <div className="p-4">
-                      <pre className="text-sm text-foreground whitespace-pre-wrap font-mono bg-muted/30 p-3 rounded border">
+                      <div 
+                        className={`overflow-hidden transition-all ease-in-out ${
+                          isCollapsed ? 'max-h-0 duration-[700ms]' : 'max-h-96 duration-700'
+                        }`}
+                      >
+                        <div className="p-4">
+                          <pre className="text-sm text-foreground whitespace-pre-wrap font-mono bg-muted/30 p-3 rounded border">
 {source.snippet}
-                      </pre>
+                          </pre>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
                 {isLoadingNewMessage && (
                   <div className="space-y-4">
                     {[1, 2, 3, 4].map((i) => (
@@ -302,7 +400,7 @@ Would you like me to elaborate on any specific aspect of your coverage?`;
                 <p className="text-sm">Ask a question to see relevant policy documents</p>
               </div>
             )}
-          </ScrollArea>
+          </div>
         </div>
       </div>
 

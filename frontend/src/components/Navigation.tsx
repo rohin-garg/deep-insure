@@ -30,7 +30,7 @@ export const Navigation = ({
   );
 
   return (
-    <div className={cn("bg-card border-r flex flex-col", className)}>
+    <div className={cn("bg-[#e8e8e7]/90 dark:bg-[#201c1c]/90 backdrop-blur-sm border-r flex flex-col", className)}>
       {/* Toggle button for mobile */}
       <div className="p-4 border-b lg:hidden">
         <Button
@@ -68,7 +68,7 @@ export const Navigation = ({
             <Skeleton className="h-8 w-1/2" />
           </div>
         ) : (
-          <nav className="flex-1 p-4 space-y-2">
+          <nav className="flex-1 p-4 space-y-2 scrollable">
           <h3 className="font-semibold text-sm uppercase tracking-wide text-muted-foreground mb-4">
             Plan Sections
           </h3>

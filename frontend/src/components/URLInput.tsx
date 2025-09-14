@@ -25,13 +25,10 @@ export const URLInput = ({ onSubmit }: URLInputProps) => {
             <FileText className="w-8 h-8 text-primary" />
           </div>
           <h1 className="text-4xl font-bold text-foreground mb-4">
-            Transform Your Insurance Plan
+            Simplify Your Insurance Plan
           </h1>
           <p className="text-xl text-muted-foreground mb-2">
-            Enter your insurance plan URL to generate an easy-to-navigate wiki
-          </p>
-          <p className="text-sm text-muted-foreground">
-            We'll convert complex documents into a searchable, user-friendly format
+            Enter your insurance plan URL or company and insurance policy to generate a searchable, easy-to-read wiki
           </p>
         </div>
 
@@ -42,17 +39,17 @@ export const URLInput = ({ onSubmit }: URLInputProps) => {
               placeholder="https://example.com/insurance-plan.pdf"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
-              className="flex-1 h-12 text-base"
+              className="flex-1 h-12 text-base bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-600"
               required
             />
             <Button
               type="submit"
               disabled={!url.trim()}
-              className="h-12 px-8 bg-primary hover:bg-primary/90"
+              className="h-12 px-8 bg-[#1c398e] hover:bg-[#1e40af] text-white group"
             >
               <div className="flex items-center gap-2">
                 Generate Wiki
-                <ArrowRight className="w-4 h-4" />
+                <ArrowRight className="w-4 h-4 transition-transform duration-200 group-hover:translate-x-1" />
               </div>
             </Button>
           </div>
@@ -66,7 +63,7 @@ export const URLInput = ({ onSubmit }: URLInputProps) => {
               onClick={() => onSubmit("demo")}
               className="text-primary hover:underline font-medium"
             >
-              demo insurance plan
+              demo
             </button>
           </p>
         </div>
