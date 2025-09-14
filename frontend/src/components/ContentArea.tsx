@@ -44,7 +44,7 @@ export const ContentArea = ({ section, loading, onCitationClick }: ContentAreaPr
   }
 
   return (
-    <div className="flex-1 overflow-y-auto">
+    <div className="flex-1 scrollable">
       <article className="max-w-4xl mx-auto p-8 prose prose-slate dark:prose-invert prose-headings:text-foreground prose-p:text-foreground prose-strong:text-foreground prose-li:text-foreground">
         <ReactMarkdown
           components={{
