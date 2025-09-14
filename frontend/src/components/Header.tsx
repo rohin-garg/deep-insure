@@ -105,16 +105,11 @@ export const Header = ({ onShare, onLogoClick }: HeaderProps) => {
   const handleShare = () => {
     navigator.clipboard.writeText(window.location.href);
     setShowShareDialog(true);
-    
+
     // Auto-close dialog after 1 second
     setTimeout(() => {
       setShowShareDialog(false);
     }, 1000);
-    
-    // Call the onShare prop if provided
-    if (onShare) {
-      onShare();
-    }
   };
 
   return (

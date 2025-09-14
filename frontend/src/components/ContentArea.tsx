@@ -3,6 +3,7 @@ import { InsuranceSection } from "@/utils/mockData";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AlertCircle, Loader2, Search, Brain, Zap } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
+import { useScramble } from "use-scramble";
 
 interface ContentAreaProps {
   section?: InsuranceSection;
@@ -20,6 +21,16 @@ export const ContentArea = ({ section, loading, onCitationClick, enableTypingAni
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const loadingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const dotIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Scramble animation for loading text
+  const { ref: scrambleRef } = useScramble({
+    text: loadingText,
+    speed: 0.6,
+    tick: 1,
+    step: 1,
+    scramble: 8,
+    seed: 2,
+  });
 
 
   // Flavor text for loading states with URL
@@ -127,8 +138,7 @@ export const ContentArea = ({ section, loading, onCitationClick, enableTypingAni
             </h1>
           </div>
           <div className="border-b border-border pb-4 mb-6">
-            <p className="text-lg text-muted-foreground">
-              {loadingText}
+            <p ref={scrambleRef} className="text-lg text-muted-foreground">
             </p>
           </div>
         </article>
