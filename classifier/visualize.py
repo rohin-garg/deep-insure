@@ -317,6 +317,7 @@ def visualize_batch_val_accuracies(model_path: str, save_path: Optional[str] = N
     
     # Extract batch validation accuracies
     batch_val_accuracies = checkpoint.get('batch_val_accuracies', [])
+    print(batch_val_accuracies)
     
     if not batch_val_accuracies:
         print("No batch validation accuracies found in checkpoint")
@@ -382,7 +383,7 @@ def main():
     Main function to visualize batch training losses and batch validation accuracies.
     """
     # Path to the saved model (adjust as needed)
-    model_path = "./state_dict_1.pth"
+    model_path = "./state_dict_100_2e-3.pth"
     
     try:
         print("Loading model checkpoint...")

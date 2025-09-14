@@ -18,7 +18,7 @@ from modal import Image, App, Volume, gpu, method
 app = App("insurance-fraud-detector")
 
 #save_name
-save_name = "state_dict_1.pth"
+save_name = "state_dict_400_1e-3.pth"
 
 # Create Modal image with required dependencies
 image = (
@@ -273,6 +273,12 @@ def train_model(
         model.train()
         total_loss = 0
         
+        # Store initial parameters for comparison
+        initial_params = {}
+        for name, param in model.named_parameters():
+            if param.requires_grad:
+                initial_params[name] = param.data.clone()
+        
         # Training
         for batch_idx, batch in enumerate(tqdm(train_loader, desc=f"Epoch {epoch + 1}/{num_epochs}")):
             # Move batch to device
@@ -290,8 +296,32 @@ def train_model(
             # Backward pass and optimize
             loss = outputs["loss"]
             loss.backward()
+            
+            # Calculate gradient norm before optimizer step
+            total_grad_norm = 0
+            for name, param in model.named_parameters():
+                if param.requires_grad and param.grad is not None:
+                    param_norm = param.grad.data.norm(2)
+                    total_grad_norm += param_norm.item() ** 2
+            total_grad_norm = total_grad_norm ** (1. / 2)
+            
             optimizer.step()
             optimizer.zero_grad()
+            
+            # Check if parameters actually changed
+            param_changed = False
+            max_param_change = 0
+            for name, param in model.named_parameters():
+                if param.requires_grad and name in initial_params:
+                    param_change = (param.data - initial_params[name]).abs().max().item()
+                    max_param_change = max(max_param_change, param_change)
+                    if param_change > 1e-8:  # Small threshold for numerical precision
+                        param_changed = True
+                        print("param_change=", param_change)
+                        print("param.data=", param.data.abs().max().item())
+                        print("initial_params[name]=", initial_params[name].abs().max().item())
+                        # Update initial params for next comparison
+                        initial_params[name] = param.data.clone()
             
             total_loss += loss.item()
             batch_train_losses.append(loss.item())
@@ -340,11 +370,13 @@ def train_model(
                 
                 model.train()  # Switch back to training mode
             
-            # Log batch loss and validation accuracy every batch
+            # Log batch loss, validation accuracy, and parameter update info
             if val_data:
-                tqdm.write(f"  Batch {batch_idx}, Train Loss: {loss.item():.4f}, Val Loss: {batch_val_loss:.4f}, Val Acc: {batch_val_accuracy:.2f}%")
+                param_status = "✓" if param_changed else "✗"
+                tqdm.write(f"  Batch {batch_idx}, Train Loss: {loss.item():.4f}, Val Loss: {batch_val_loss:.4f}, Val Acc: {batch_val_accuracy:.2f}%, Grad Norm: {total_grad_norm:.6f}, Params Updated: {param_status} (Max Change: {max_param_change:.2e})")
             else:
-                tqdm.write(f"  Batch {batch_idx}, Train Loss: {loss.item():.4f}")
+                param_status = "✓" if param_changed else "✗"
+                tqdm.write(f"  Batch {batch_idx}, Train Loss: {loss.item():.4f}, Grad Norm: {total_grad_norm:.6f}, Params Updated: {param_status} (Max Change: {max_param_change:.2e})")
         
         avg_train_loss = total_loss / len(train_loader)
         train_losses.append(avg_train_loss)
@@ -479,7 +511,7 @@ def main():
     # Load data from insurance_fragments
     print("Loading training data...")
     from insurance_fragments import insurance_data
-    train_data = insurance_data[:100]  # Use the data from insurance_fragments module
+    train_data = insurance_data[:400]  # Use the data from insurance_fragments module
     
     # Split data into train/val (80/20 split)
     split_idx = int(0.8 * len(train_data))
@@ -496,7 +528,7 @@ def main():
         val_data=val_split,
         batch_size=2,  # Small batch size for large model
         num_epochs=1,
-        learning_rate=2e-5,
+        learning_rate=1e-3,
         model_name="google/gemma-3-12b-it" 
     )
     
