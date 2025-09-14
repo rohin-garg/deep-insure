@@ -100,7 +100,7 @@ export const URLInput = ({ onSubmit }: URLInputProps) => {
             <Button
               type="submit"
               disabled={!url.trim()}
-              className="h-12 px-8 bg-[#1c398e] hover:bg-[#1e40af] text-white group"
+              className="h-12 px-8 rainbow-button group"
             >
               <div className="flex items-center gap-2">
                 Generate Wiki

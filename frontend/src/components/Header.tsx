@@ -113,7 +113,7 @@ export const Header = ({ onShare, onLogoClick }: HeaderProps) => {
 
   return (
     <>
-      <header className="h-16 border-b bg-[#e8e8e7]/90 dark:bg-[#201c1c]/90 backdrop-blur-sm sticky top-0 z-50">
+      <header className="h-16 border-b header-gradient backdrop-blur-sm sticky top-0 z-50">
         <div className="container mx-auto px-4 h-full flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div 
@@ -123,7 +123,7 @@ export const Header = ({ onShare, onLogoClick }: HeaderProps) => {
               <img 
                 src="/favicon.ico" 
                 alt="DeepInsure Logo" 
-                className="h-8 w-8"
+                className="h-12 w-12"
               />
               <h1 className="text-2xl font-bold text-primary">
                 DeepInsure <span className="text-sm text-muted-foreground font-normal">by <a href="https://www.linkedin.com/in/rohin-garg-362bb8226/" target="_blank" rel="noopener noreferrer" className="hover:text-primary underline">Rohin</a>, <a href="https://www.linkedin.com/in/jeremy-luu1/" target="_blank" rel="noopener noreferrer" className="hover:text-primary underline">Jeremy</a>, <a href="https://www.linkedin.com/in/brian-zhang-96b120378/" target="_blank" rel="noopener noreferrer" className="hover:text-primary underline">Brian</a>, and <a href="https://www.linkedin.com/in/william-zhao-53545b233/" target="_blank" rel="noopener noreferrer" className="hover:text-primary underline">William</a></span>
@@ -155,7 +155,7 @@ export const Header = ({ onShare, onLogoClick }: HeaderProps) => {
             <Button
               onClick={handleShare}
               size="sm"
-              className="bg-[#1c398e] hover:bg-[#1e40af] text-white group"
+              className="bg-primary text-primary-foreground hover:bg-primary/90 group"
             >
               <Share 
                 className="h-4 w-4 mr-2 transition-transform duration-200 ease-in-out group-hover:scale-110" 

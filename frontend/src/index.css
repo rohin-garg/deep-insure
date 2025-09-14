@@ -25,6 +25,64 @@
   100% { transform: rotate(0deg) scale(1); }
 }
 
+/* Rainbow animation for buttons */
+@keyframes rainbow {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.rainbow-button {
+  background: linear-gradient(
+    45deg,
+    #3b82f6,
+    #6366f1,
+    #8b5cf6,
+    #a855f7,
+    #c084fc,
+    #3b82f6
+  );
+  background-size: 400% 400%;
+  animation: rainbow 15s ease-in-out infinite;
+  color: white;
+  border: none;
+}
+
+/* Light animated gradient for header */
+@keyframes headerGradient {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.header-gradient {
+  background: linear-gradient(
+    45deg,
+    #f8fafc,
+    #e0e7ff,
+    #dbeafe,
+    #bfdbfe,
+    #e0e7ff,
+    #f8fafc
+  );
+  background-size: 400% 400%;
+  animation: headerGradient 20s ease-in-out infinite;
+}
+
+.dark .header-gradient {
+  background: linear-gradient(
+    45deg,
+    #1e1b4b,
+    #312e81,
+    #1e40af,
+    #2563eb,
+    #312e81,
+    #1e1b4b
+  );
+  background-size: 400% 400%;
+  animation: headerGradient 20s ease-in-out infinite;
+}
+
 /* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
 All colors MUST be HSL.
 */
