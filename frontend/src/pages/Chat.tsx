@@ -233,8 +233,15 @@ const Chat = () => {
           ));
 
           // Parse sources from response
+          console.log('Extracting sources from response:', response.substring(0, 500) + '...');
           const extractedSources = extractSourcesFromResponse(response);
-          setSources(extractedSources);
+          console.log('Extracted sources:', extractedSources);
+
+          if (extractedSources.length > 0) {
+            animateSourcesLoading(extractedSources);
+          } else {
+            setSources(extractedSources);
+          }
 
           // Start typing animation
           typeMessage(aiMessage.id, response);
@@ -458,8 +465,20 @@ const Chat = () => {
       ));
 
       // Parse and add new sources from response
+      console.log('Extracting sources from follow-up response:', response.substring(0, 500) + '...');
       const extractedSources = extractSourcesFromResponse(response);
-      setSources(prev => [...prev, ...extractedSources]);
+      console.log('Extracted follow-up sources:', extractedSources);
+
+      if (extractedSources.length > 0) {
+        setSources(prev => [...prev, ...extractedSources]);
+        // Animate new sources appearing
+        const startIndex = sources.length;
+        extractedSources.forEach((_, index) => {
+          setTimeout(() => {
+            setVisibleSources(prev => new Set([...prev, startIndex + index]));
+          }, index * 200);
+        });
+      }
 
       // Start typing animation
       typeMessage(aiMessage.id, response);
@@ -523,6 +542,9 @@ const Chat = () => {
     const citationRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
     const matches = Array.from(response.matchAll(citationRegex));
 
+    console.log('Citation regex matches found:', matches.length);
+    console.log('First few matches:', matches.slice(0, 3));
+
     for (const match of matches) {
       const text = match[1];
       const url = match[2];
@@ -548,7 +570,7 @@ const Chat = () => {
 
       // Create source card from citation
       sources.push({
-        title: text.replace(/^\*+|\*+$/g, ''), // Remove markdown bold markers
+        title: url, // Use URL as title instead of link text
         url: url,
         snippet: context,
         type: sourceType
@@ -563,6 +585,33 @@ const Chat = () => {
 
   const handleShare = () => {
     navigator.clipboard.writeText(window.location.href);
+  };
+
+  const handleLinkClick = (url: string) => {
+    // Find the source with matching URL
+    const sourceIndex = sources.findIndex(source => source.url === url);
+
+    if (sourceIndex !== -1) {
+      setHighlightedSource(sourceIndex);
+      // Expand the source card if it's collapsed
+      setCollapsedSources(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(sourceIndex); // Remove from collapsed set to expand it
+        return newSet;
+      });
+      // Scroll to the source element
+      const sourceElement = document.querySelector(`[data-source-index="${sourceIndex}"]`);
+      if (sourceElement && sourcesScrollRef.current) {
+        sourceElement.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center'
+        });
+      }
+      // Auto-clear highlight after 3 seconds
+      setTimeout(() => {
+        setHighlightedSource(null);
+      }, 3000);
+    }
   };
 
   const mockAIResponse = `Based on the provided information, the **AARP Medicare Advantage Patriot No Rx MA-MA01 (PPO)** offers comprehensive benefits while having some important exclusions.
@@ -718,11 +767,14 @@ The plan provides comprehensive coverage with extensive additional benefits beyo
                                       </button>
                                     );
                                   }
-                                  // Handle regular markdown links - these will become sources
+                                  // Handle regular markdown links - these will become sources with distinct blue styling
                                   return (
-                                    <span className="text-primary hover:underline cursor-pointer font-medium">
+                                    <button
+                                      onClick={() => handleLinkClick(href || '')}
+                                      className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 underline decoration-2 underline-offset-2 font-medium cursor-pointer transition-colors bg-transparent border-none p-0"
+                                    >
                                       {children}
-                                    </span>
+                                    </button>
                                   );
                                 },
                                 p: ({ children }) => (
@@ -798,8 +850,9 @@ The plan provides comprehensive coverage with extensive additional benefits beyo
             <h2 className="text-2xl font-semibold text-foreground mt-2">Sources</h2>
           </div>
           
-          <div 
+          <div
             className="flex-1 px-4 pb-4 pt-2 scrollable"
+            ref={sourcesScrollRef}
           >
             {sources.length > 0 ? (
               <div className="space-y-4 pb-32">
@@ -839,44 +892,64 @@ The plan provides comprehensive coverage with extensive additional benefits beyo
                                 <ChevronUp className="h-3 w-3" />
                               )}
                             </Button>
-                            <h3 className="font-medium text-foreground">{source.title}</h3>
+                            <h3 className="font-medium text-foreground truncate">{new URL(source.url).hostname}{new URL(source.url).pathname}</h3>
                           </div>
                           <span className="text-xs text-muted-foreground px-2 py-1 bg-background rounded">
                             {source.type}
                           </span>
                         </div>
-                        <p className="text-xs text-muted-foreground mt-1 ml-8">{source.url}</p>
+                        <p className="text-xs text-muted-foreground mt-1 ml-8">Source link</p>
                       </div>
                       <div
                         className={`overflow-hidden transition-all ease-in-out ${
-                          isCollapsed ? 'max-h-0 duration-[700ms]' : 'max-h-[500px] duration-700'
+                          isCollapsed ? 'max-h-0 duration-[700ms]' : 'max-h-[600px] duration-700'
                         }`}
                       >
                         <div className="p-2">
-                          <div className="bg-muted/30 rounded border overflow-hidden">
+                          <div className="bg-muted/30 rounded border overflow-hidden relative">
+                            <div className="absolute inset-0 flex items-center justify-center bg-muted/50 z-10 iframe-loading">
+                              <div className="flex items-center gap-2 text-muted-foreground text-sm">
+                                <div className="animate-spin w-4 h-4 border-2 border-current border-t-transparent rounded-full"></div>
+                                Loading website...
+                              </div>
+                            </div>
                             <iframe
                               src={source.url}
-                              title={`Source: ${source.title}`}
-                              className="w-full h-[400px] border-0"
+                              title={`Source: ${new URL(source.url).hostname}`}
+                              className="w-full h-[500px] border-0"
                               sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
                               loading="lazy"
-                              onError={(e) => {
-                                // Fallback: show context snippet instead of iframe
+                              onLoad={(e) => {
+                                // Hide loading overlay when iframe loads successfully
                                 const iframe = e.target as HTMLIFrameElement;
-                                const fallbackDiv = document.createElement('div');
-                                fallbackDiv.innerHTML = `
-                                  <div class="p-4 text-sm text-foreground">
-                                    <p class="text-muted-foreground mb-2">Unable to embed webpage. Here's the context:</p>
-                                    <div class="bg-background p-3 rounded border">
-                                      <p>"${source.snippet}"</p>
+                                const loadingOverlay = iframe.parentNode?.querySelector('.iframe-loading') as HTMLElement;
+                                if (loadingOverlay) {
+                                  loadingOverlay.style.display = 'none';
+                                }
+                              }}
+                              onError={(e) => {
+                                // Fallback: show minimal error with external link
+                                const iframe = e.target as HTMLIFrameElement;
+                                const container = iframe.parentNode as HTMLElement;
+                                container.innerHTML = `
+                                  <div class="flex items-center justify-center h-[500px] bg-muted/20 rounded">
+                                    <div class="text-center p-6">
+                                      <div class="w-12 h-12 mx-auto mb-3 bg-orange-100 dark:bg-orange-900 rounded-lg flex items-center justify-center">
+                                        <svg class="w-6 h-6 text-orange-600 dark:text-orange-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L4.268 18.5c-.77.833.192 2.5 1.732 2.5z" />
+                                        </svg>
+                                      </div>
+                                      <p class="text-muted-foreground mb-4 text-sm">This website cannot be embedded</p>
+                                      <a href="${source.url}" target="_blank" rel="noopener noreferrer"
+                                         class="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors">
+                                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                        </svg>
+                                        Open in New Tab
+                                      </a>
                                     </div>
-                                    <a href="${source.url}" target="_blank" rel="noopener noreferrer"
-                                       class="text-primary hover:underline mt-2 inline-block">
-                                      → Open source in new tab
-                                    </a>
                                   </div>
                                 `;
-                                iframe.parentNode?.replaceChild(fallbackDiv, iframe);
                               }}
                             />
                           </div>
