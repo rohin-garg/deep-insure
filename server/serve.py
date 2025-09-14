@@ -91,6 +91,15 @@ def init_database():
             )
         ''')
         
+        # Create full_summary_cache table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS full_summary_cache (
+                insurance_plan_url TEXT PRIMARY KEY,
+                summary_data TEXT NOT NULL,
+                cached_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
         conn.commit()
 
 @contextmanager
@@ -106,7 +115,7 @@ init_database()
 
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 EXA_API_KEY = os.getenv("EXA_API_KEY")
-MODEL_ID = "claude-3-5-haiku-latest"
+MODEL_ID = "claude-sonnet-4-20250514"
 
 # Initialize Anthropic client
 anthropic_client = anthropic.Anthropic()
@@ -567,7 +576,7 @@ async def get_insurance_context(insurance_plan_url: str, query: str) -> List[Con
         for pdf_url in pdf_links:
             try:
                 # Extract text from PDF
-                
+                print('extracting pdf', pdf_url)
                 pdf_text = await extract_pdf_text(pdf_url)
                 if pdf_text:
                     # print(pdf_url, pdf_text)
@@ -610,26 +619,63 @@ def generate_summary_with_llm(context_items: List[ContextItem]) -> Dict[str, Any
         # Combine all context
         combined_text = "\n\n".join([item.relevant_text for item in context_items])
         
-        prompt = f"""
-        Please analyze the following insurance plan information and create a structured summary in markdown format.
-        Provide detailed content under each header. You should include ALL relevant information, be as comprehensive as possible.
+        # Create cache key for the raw markdown output
+        markdown_cache_key = hashlib.md5(combined_text.encode()).hexdigest()
         
-        Insurance Plan Information:
-        {combined_text}
+        # Check if we have cached markdown output
+        conn = sqlite3.connect('insurance_analysis.db')
+        cursor = conn.cursor()
         
-        Create a comprehensive summary covering key aspects like coverage, costs, benefits, etc.
-        Return only markdown with no additional text. Use single hashtags for the main sections, and do not use any hashtags for the title.
-        """
+        # Create markdown cache table if it doesn't exist
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS markdown_output_cache (
+                cache_key TEXT PRIMARY KEY,
+                markdown_text TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
         
-        response = anthropic_client.messages.create(
-            model=MODEL_ID,
-            max_tokens=MAX_TOKENS,
-            messages=[
-                {"role": "user", "content": prompt}
-            ]
-        )
+        # Try to get cached markdown
+        cursor.execute("SELECT markdown_text FROM markdown_output_cache WHERE cache_key = ?", (markdown_cache_key,))
+        cached_result = cursor.fetchone()
         
-        markdown_text = response.content[0].text.strip()
+        if cached_result:
+            print("Using cached markdown output")
+            markdown_text = cached_result[0]
+        else:
+            print("Generating new markdown with Claude")
+            prompt = f"""
+            Please analyze the following insurance plan information and create a structured summary in markdown format.
+            Provide detailed content under each header. You should include ALL relevant information, be as comprehensive and detailed as possible, try to make the summary descriptive and readable even if the consumer is unaware of what the different insurance terms mean (use your knowledge to extrapolate). I want long, iimpressive, information-filled sections.
+            
+            Insurance Plan Information:
+            {combined_text}
+            
+            Create a comprehensive summary covering key aspects like coverage, costs, benefits, etc.
+            Return only markdown with no additional text. Use single hashtags for the main sections (there should be a lot of these, one for each of the important sections of the policy, not just the title). I'm expecting 5-10 sections with one hashtag, and length descriptions for each section.
+            Each one of these sections should also have subheadings. I want a long, nicely structured document (tables would also be great)
+            All text should be under at least one header.
+            """
+            
+            response = anthropic_client.messages.create(
+                model=MODEL_ID,
+                max_tokens=MAX_TOKENS,
+                messages=[
+                    {"role": "user", "content": prompt}
+                ]
+            )
+            
+            markdown_text = response.content[0].text.strip()
+            
+            # Cache the markdown output
+            cursor.execute(
+                "INSERT OR REPLACE INTO markdown_output_cache (cache_key, markdown_text) VALUES (?, ?)",
+                (markdown_cache_key, markdown_text)
+            )
+            conn.commit()
+        
+        conn.close()
+        
         print("===== BEGIN MARKDOWN TEXT =====")
         print(markdown_text)
         print("===== END MARKDOWN TEXT =====")
@@ -641,11 +687,11 @@ def generate_summary_with_llm(context_items: List[ContextItem]) -> Dict[str, Any
         
         for line in markdown_text.split('\n'):
             # Check if line is a single # header (not ## or ###)
-            if line.startswith('# ') and not line.startswith('## '):
+            if line.startswith("# ") and not line.startswith("## "):
                 continue
-            elif line.startswith("## ") and not line.startswith("### "):
+            elif line.startswith('## ') and not line.startswith('### '):
                 # Save previous section if exists
-                if current_header is not None:
+                if current_header is not None and len('\n'.join(current_content).strip()) > 0:
                     sections.append({
                         'header': current_header,
                         'content': '\n'.join(current_content).strip()
@@ -698,8 +744,8 @@ def generate_answer_with_llm(query: str, context_items: List[ContextItem]) -> st
         combined_context = "\n\n".join(context_with_citations)
         
         prompt = f"""
-        Based on the following context about an insurance plan, answer the user's question.
-        Include citations in markdown format using the source links provided.
+        Based on the following context about an insurance plan, answer the user's question. Use markdown to format the text.
+        Include citations in markdown format using the source links provided. When citing a link, pick the most representative word/phrase present in the text and make that the place holder text of the link. For example, if the text is "The reason this plan is good is dental insurance" the markdown for the link should be ["dental insurance"](link).
         
         Context:
         {combined_context}
@@ -778,6 +824,16 @@ async def get_chat_history(id: str = Query(..., description="Chat session ID")):
 async def get_full_summary(insurance_plan_url: str = Query(..., description="URL of the insurance plan")):
     """Get full summary of an insurance plan"""
     try:
+        # Check cache first
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT summary_data FROM full_summary_cache WHERE insurance_plan_url = ?", (insurance_plan_url,))
+            cached_result = cursor.fetchone()
+            
+            if cached_result:
+                print(f"Returning cached summary for {insurance_plan_url}")
+                return json.loads(cached_result[0])
+        
         # Get context for the insurance plan (using a general query)
         base_query = "insurance plan summary coverage benefits costs"
         context_items = await get_insurance_context(insurance_plan_url, base_query)
@@ -794,6 +850,16 @@ async def get_full_summary(insurance_plan_url: str = Query(..., description="URL
         
         # Generate summary using LLM with enhanced context
         summary = generate_summary_with_llm(all_context_items)
+        
+        # Cache the result
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "INSERT OR REPLACE INTO full_summary_cache (insurance_plan_url, summary_data) VALUES (?, ?)",
+                (insurance_plan_url, json.dumps(summary))
+            )
+            conn.commit()
+            print(f"Cached summary for {insurance_plan_url}")
         
         return summary
     
@@ -886,6 +952,6 @@ def test_functions():
     import code; code.interact(local=dict(globals(), **locals()))
 
 if __name__ == "__main__":
-    # test_functions()
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    test_functions()
+    # import uvicorn
+    # uvicorn.run(app, host="0.0.0.0", port=8000)
