@@ -35,8 +35,9 @@ class InsuranceFraudDetector(nn.Module):
         self.backbone = AutoModelForCausalLM.from_pretrained(
             model_name,
             device_map="auto",
-            dtype=torch.bfloat16 if 'cuda' in self.device else torch.float32,
-            trust_remote_code=True
+            torch_dtype=torch.bfloat16,  # Use torch_dtype instead of dtype
+            trust_remote_code=True,
+            attn_implementation="flash_attention_2"  # Enable Flash Attention for speed
         )
         
         # Freeze the backbone model
@@ -44,7 +45,6 @@ class InsuranceFraudDetector(nn.Module):
             param.requires_grad = False
         
         # Get hidden size of the model
-        # hidden_size = self.backbone.config.hidden_size
         hidden_size = 3840
         
         # Classification head
@@ -57,8 +57,7 @@ class InsuranceFraudDetector(nn.Module):
         )
         
         # Set classifier to same dtype as backbone model
-        classifier_dtype = torch.bfloat16 if 'cuda' in self.device else torch.float32
-        self.classifier = self.classifier.to(self.device, dtype=classifier_dtype)
+        self.classifier = self.classifier.to(self.device, dtype=torch.bfloat16)
         self.loss_fn = nn.BCELoss()
         
         # Verify only classifier parameters are trainable
@@ -121,6 +120,7 @@ class InsuranceFraudDetector(nn.Module):
             
         return output
     
+    @torch.inference_mode()  # More efficient than torch.no_grad() for inference
     def predict(self, text: str, threshold: float = 0.5) -> Dict[str, float]:
         """
         Make a prediction on a single input text.
@@ -139,14 +139,13 @@ class InsuranceFraudDetector(nn.Module):
             text,
             padding=True,
             truncation=True,
-            max_length=2048,  # Adjust based on GPU memory
+            max_length=1024,  # Reduced from 2048 for faster inference
             return_tensors="pt"
         ).to(self.device)
         
         # Get predictions
-        with torch.no_grad():
-            outputs = self(**inputs)
-            prob_fraud = outputs["logits"].item()  # Already a probability from sigmoid
+        outputs = self(**inputs)
+        prob_fraud = outputs["logits"].item()  # Already a probability from sigmoid
         
         return {
             "probability": prob_fraud,
@@ -155,81 +154,121 @@ class InsuranceFraudDetector(nn.Module):
         }
 
 
-web_app = FastAPI()
-
 # -------------------
 # Modal setup
 # -------------------
-app = modal.App("insurance-fraud-detector-gpu")
+app = modal.App("insurance-fraud-detector-gpu-2")
+
+# Optimized image with all necessary packages
+# image = modal.Image.debian_slim(python_version="3.11").pip_install([
+#     "torch>=2.0.0",
+#     "transformers>=4.35.0",
+#     "fastapi",
+#     "accelerate>=0.24.0",
+#     "flash-attn>=2.3.0",  # For Flash Attention
+#     "pydantic"
+# ])
+image = (
+    modal.Image.debian_slim(python_version="3.11")
+    .pip_install(["torch", "transformers", "fastapi", "accelerate", "pydantic"])
+    .pip_install("numpy")  # Add separately if needed
+    .pip_install("tqdm")   # Add separately if needed
+)
 
 # Persistent volume where checkpoint resides
 volume = modal.Volume.from_name("insurance-models")
 MODEL_DIR = Path("/models")
 CHECKPOINT_FILE = MODEL_DIR / "state_dict_100_2e-3.pth"
-device = "cuda" if torch.cuda.is_available() else "cpu"
 
-# tokenizer = AutoTokenizer.from_pretrained("google/gemma-3-12b-it")
+class PredictionRequest(BaseModel):
+    features: str
+    threshold: float = 0.5
 
 # -------------------
-# Model container class
+# Model container class - FIXED
 # -------------------
 @app.cls(
-    image=modal.Image.debian_slim().pip_install("torch", "transformers", "fastapi", "accelerate"),
+    image=image,
     gpu="H100",
     volumes={MODEL_DIR: volume},
-    timeout=1200
+    timeout=1200,
+    keep_warm=1,  # Keep 1 instance warm to avoid cold starts
+    container_idle_timeout=300,  # Keep containers alive for 5 minutes
+    allow_concurrent_inputs=10  # Allow multiple concurrent requests
 )
 class ModelContainer:
-    def __init__(self):
+    @modal.enter()
+    def load_model(self):
+        """Initialize model when container starts"""
+        print("Initializing model...")
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        
+        # Load model
         self.model = InsuranceFraudDetector(device=device)
+        
+        # Load checkpoint from volume
+        print(f"Loading checkpoint from {CHECKPOINT_FILE}...")
         checkpoint = torch.load(CHECKPOINT_FILE, map_location=device)
         classifier_state = checkpoint['classifier_state_dict']
         classifier_dict = {k.replace('classifier.', ''): v for k, v in classifier_state.items() if 'classifier' in k}
         self.model.classifier.load_state_dict(classifier_dict)
         self.model.eval()
-        print("Model loaded successfully!")
+        
+        # Warmup with a dummy prediction to compile/optimize
+        print("Warming up model...")
+        dummy_text = "This is a sample insurance claim for testing purposes."
+        _ = self.model.predict(dummy_text)
+        
+        print("Model loaded and warmed up successfully!")
 
-    def predict(self, features):
-        with torch.no_grad():
-            # x = torch.tensor(features, dtype=torch.float32).unsqueeze(0)
-            y = self.model.predict(features).item()
-        return y
+    @modal.method()
+    def predict(self, text: str, threshold: float = 0.5):
+        """Make prediction on input text"""
+        return self.model.predict(text, threshold)
 
+    @modal.method()
+    def batch_predict(self, texts: List[str], threshold: float = 0.5):
+        """Make predictions on multiple texts"""
+        results = []
+        for text in texts:
+            results.append(self.model.predict(text, threshold))
+        return results
+
+# -------------------
+# FastAPI app
+# -------------------
 web_app = FastAPI()
-model_container = ModelContainer()  # global
 
 @web_app.post("/predict")
-def predict(req: dict):
-    text = req["features"]  # string input
-    # inputs = tokenizer(text, return_tensors="pt", padding=True, truncation=True)
-    # print("inputs=", inputs)
-    # feed tokenized input to the model
-    y = model_container.predict(text)
-    # if isinstance(y, torch.Tensor):
-    #     y = y.item()
-    # return {"fraud_probability": y}
-    return {"prob": y["probability"]}
-    # return {"fraud_probability": model_container.predict(req["features"])}
+async def predict_endpoint(request: PredictionRequest):
+    """Single prediction endpoint"""
+    container = ModelContainer()
+    result = container.predict.remote(request.features, request.threshold)
+    return {"prob": result["probability"], "class": result["class"]}
 
+@web_app.post("/batch_predict") 
+async def batch_predict_endpoint(request: dict):
+    """Batch prediction endpoint"""
+    texts = request["features"]  # List of strings
+    threshold = request.get("threshold", 0.5)
+    
+    container = ModelContainer()
+    results = container.batch_predict.remote(texts, threshold)
+    
+    return {"predictions": [{"prob": r["probability"], "class": r["class"]} for r in results]}
+
+@web_app.get("/health")
+async def health_check():
+    """Health check endpoint"""
+    return {"status": "healthy"}
+
+# -------------------
+# Serve the app
+# -------------------
 @app.function(
-    image=modal.Image.debian_slim().pip_install("torch", "transformers", "fastapi", "accelerate"),
-    gpu="H100",
-    volumes={MODEL_DIR: volume},
+    image=image,
     secrets=[modal.Secret.from_name("modal")],
-    timeout=1200
 )
 @modal.asgi_app()
 def serve():
     return web_app
-
-
-# # local testing
-# if __name__ == "__main__":
-#     # Run the function and get the result
-#     f = my_function.spawn()  # runs remotely
-#     # Stream logs to local terminal
-#     for log in f.logs(stream=True):
-#         print(log)
-#     # Optionally get the return value
-#     result = f.wait()
-#     print("Result:", result)

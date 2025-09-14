@@ -1,0 +1,318 @@
+import modal
+import torch
+import torch.nn as nn
+from fastapi import FastAPI
+from pydantic import BaseModel
+from transformers import AutoTokenizer, AutoModelForCausalLM
+from typing import Optional, Dict, List, Tuple
+import numpy as np
+from dataclasses import dataclass
+from torch.utils.data import Dataset, DataLoader
+import json
+from tqdm import tqdm
+import os
+from pathlib import Path
+
+# Persistent volume where checkpoint resides
+volume = modal.Volume.from_name("insurance-models")
+MODEL_DIR = Path("/models")
+CHECKPOINT_FILE = MODEL_DIR / "state_dict_100_2e-3.pth"
+device = "cuda" # if torch.cuda.is_available() else "cpu"
+
+
+# class InsuranceFraudDetector(nn.Module):
+#     # @modal.enter()
+#     # def setup(self, model_id=MODEL_ID):
+#     #     import load_model
+#     #     self.model = load_model(MODEL_DIR, model_id)
+
+#     def __init__(self, model_name: str = "google/gemma-3-12b-it", num_labels: int = 2, device: str = None):
+#         """
+#         Initialize the insurance fraud detector with a pre-trained Gemma model.
+        
+#         Args:
+#             model_name: Name or path of the pre-trained Gemma model
+#             num_labels: Number of output labels (2 for binary classification)
+#             device: Device to run the model on ('cuda' or 'cpu')
+#         """
+#         super().__init__()
+        
+#         # Set device
+#         self.device = device
+        
+#         # Load pre-trained model and tokenizer
+#         print(f"Loading model {model_name}...")
+#         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+#         self.backbone = AutoModelForCausalLM.from_pretrained(
+#             model_name,
+#             device_map="auto",
+#             dtype=torch.bfloat16 if 'cuda' in self.device else torch.float32,
+#             trust_remote_code=True
+#         )
+        
+#         # Freeze the backbone model
+#         for param in self.backbone.parameters():
+#             param.requires_grad = False
+        
+#         # Get hidden size of the model
+#         # hidden_size = self.backbone.config.hidden_size
+#         hidden_size = 3840
+        
+#         # Classification head
+#         self.classifier = nn.Sequential(
+#             nn.Linear(hidden_size, 512),
+#             nn.ReLU(),
+#             nn.Dropout(0.1),
+#             nn.Linear(512, 1),
+#             nn.Sigmoid()
+#         )
+        
+#         # Set classifier to same dtype as backbone model
+#         classifier_dtype = torch.bfloat16 if 'cuda' in self.device else torch.float32
+#         self.classifier = self.classifier.to(self.device, dtype=classifier_dtype)
+#         self.loss_fn = nn.BCELoss()
+        
+#         # Verify only classifier parameters are trainable
+#         trainable_params = sum(p.numel() for p in self.parameters() if p.requires_grad)
+#         total_params = sum(p.numel() for p in self.parameters())
+#         print(f"Model loaded on {self.device}")
+#         print(f"Trainable parameters: {trainable_params:,} / {total_params:,} ({100 * trainable_params / total_params:.2f}%)")
+        
+#     def get_trainable_parameters(self):
+#         """Return only the trainable parameters (classification head)."""
+#         return filter(lambda p: p.requires_grad, self.parameters())
+    
+#     def forward(self, input_ids: torch.Tensor, attention_mask: Optional[torch.Tensor] = None, 
+#                 labels: Optional[torch.Tensor] = None) -> Dict[str, torch.Tensor]:
+#         """
+#         Forward pass through the model.
+        
+#         Args:
+#             input_ids: Input token IDs
+#             attention_mask: Attention mask
+#             labels: Ground truth labels for training
+            
+#         Returns:
+#             Dictionary containing logits and (if labels provided) loss
+#         """
+#         # Get hidden states from the backbone model
+#         outputs = self.backbone(
+#             input_ids=input_ids,
+#             attention_mask=attention_mask,
+#             output_hidden_states=True,
+#             return_dict=True
+#         )
+        
+#         # Use the hidden states of the last token
+#         last_hidden_state = outputs.hidden_states[-1]  # (batch_size, seq_len, hidden_size)
+#         last_token_hidden = last_hidden_state[:, -1, :]  # (batch_size, hidden_size)
+        
+#         # Ensure dtype consistency between backbone output and classifier
+#         classifier_dtype = next(self.classifier.parameters()).dtype
+#         if last_token_hidden.dtype != classifier_dtype:
+#             last_token_hidden = last_token_hidden.to(dtype=classifier_dtype)
+        
+#         # Pass through classifier (includes sigmoid)
+#         probs = self.classifier(last_token_hidden)  # (batch_size, 1)
+#         probs = probs.squeeze(-1)  # (batch_size,) - remove last dimension
+        
+#         # Convert probs to float32 for loss calculation if needed
+#         if probs.dtype != torch.float32:
+#             probs_for_loss = probs.float()
+#         else:
+#             probs_for_loss = probs
+        
+#         output = {"logits": probs}  # Keep same key for compatibility
+        
+#         # Calculate loss if labels are provided
+#         if labels is not None:
+#             labels_float = labels.float()  # BCELoss expects float labels
+#             loss = self.loss_fn(probs_for_loss, labels_float)
+#             output["loss"] = loss
+            
+#         return output
+    
+#     def predict(self, text: str, threshold: float = 0.5) -> Dict[str, float]:
+#         """
+#         Make a prediction on a single input text.
+        
+#         Args:
+#             text: Input insurance policy text
+#             threshold: Threshold for positive class
+            
+#         Returns:
+#             Dictionary with prediction probabilities and class
+#         """
+#         self.eval()
+        
+#         # Tokenize input
+#         inputs = self.tokenizer(
+#             text,
+#             padding=True,
+#             truncation=True,
+#             max_length=2048,  # Adjust based on GPU memory
+#             return_tensors="pt"
+#         ).to(self.device)
+        
+#         # Get predictions
+#         with torch.no_grad():
+#             outputs = self(**inputs)
+#             prob_fraud = outputs["logits"].item()  # Already a probability from sigmoid
+        
+#         return {
+#             "probability": prob_fraud,
+#             "prediction": 1 if prob_fraud >= threshold else 0,
+#             "class": "suspicious" if prob_fraud >= threshold else "normal"
+#         }
+
+class InsuranceFraudDetector(nn.Module):
+    def __init__(self, device: str = None):
+        super().__init__()
+        self.device = device
+        self.model_loaded = False  # flag to know if weights are loaded
+
+    @modal.enter()
+    def setup(self, model_dir: str = MODEL_DIR):
+        """
+        Load the model and tokenizer from the Modal volume after the container starts.
+        """
+        # print(f"Loading model {model_id} from {model_dir} on {self.device}...")
+        
+        self.tokenizer = AutoTokenizer.from_pretrained("google/gemma-3-12b-it")
+        # self.backbone = AutoModelForCausalLM.from_pretrained(
+        #     model_dir,
+        #     device_map="auto",
+        #     dtype=torch.bfloat16 if "cuda" in self.device else torch.float32,
+        #     trust_remote_code=True
+        # )
+        self.backbone = AutoModelForCausalLM.from_pretrained('google/gemma-3-12b-it', device_map="cuda")
+        # Freeze backbone
+        for param in self.backbone.parameters():
+            param.requires_grad = False
+        
+        hidden_size = 3840  # or fetch from backbone config
+        self.classifier = nn.Sequential(
+            nn.Linear(hidden_size, 512),
+            nn.ReLU(),
+            nn.Dropout(0.1),
+            nn.Linear(512, 1),
+            nn.Sigmoid()
+        ).to(self.device, dtype=torch.bfloat16 if "cuda" in self.device else torch.float32)
+        
+        self.loss_fn = nn.BCELoss()
+        self.model_loaded = True
+        print("Model loaded and ready.")
+
+    def forward(self, input_ids: torch.Tensor, attention_mask: Optional[torch.Tensor] = None,
+                labels: Optional[torch.Tensor] = None) -> Dict[str, torch.Tensor]:
+        if not self.model_loaded:
+            raise RuntimeError("Model not loaded yet. Call setup() first or use @enter.")
+        
+        outputs = self.backbone(
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+            # output_hidden_states=True,
+            return_dict=True
+        ).to(self.device)
+        last_hidden_state = outputs.hidden_states[-1]
+        last_token_hidden = last_hidden_state[:, -1, :]
+        classifier_dtype = next(self.classifier.parameters()).dtype
+        if last_token_hidden.dtype != classifier_dtype:
+            last_token_hidden = last_token_hidden.to(dtype=classifier_dtype)
+        probs = self.classifier(last_token_hidden).squeeze(-1)
+        
+        output = {"logits": probs}
+        if labels is not None:
+            loss = self.loss_fn(probs.float(), labels.float())
+            output["loss"] = loss
+        return output
+
+    def predict(self, text: str, threshold: float = 0.5) -> Dict[str, float]:
+        if not self.model_loaded:
+            raise RuntimeError("Model not loaded yet. Call setup() first or use @enter.")
+        self.eval()
+        inputs = self.tokenizer(
+            text, padding=True, truncation=True, max_length=2048, return_tensors="pt"
+        ).to(self.device)
+        with torch.no_grad():
+            outputs = self(**inputs)
+            prob_fraud = outputs["logits"].item()
+        return {
+            "probability": prob_fraud,
+            "prediction": 1 if prob_fraud >= threshold else 0,
+            "class": "suspicious" if prob_fraud >= threshold else "normal"
+        }
+
+web_app = FastAPI()
+
+# -------------------
+# Modal setup
+# -------------------
+app = modal.App("insurance-fraud-detector-gpu")
+
+
+# tokenizer = AutoTokenizer.from_pretrained("google/gemma-3-12b-it")
+
+# -------------------
+# Model container class
+# -------------------
+@app.cls(
+    image=modal.Image.debian_slim().pip_install("torch", "transformers", "fastapi", "accelerate"),
+    gpu="H100",
+    volumes={MODEL_DIR: volume},
+    timeout=1200
+)
+class ModelContainer:
+    def __init__(self):
+        self.model = InsuranceFraudDetector(device=device)
+        checkpoint = torch.load(CHECKPOINT_FILE, map_location=device)
+        classifier_state = checkpoint['classifier_state_dict']
+        classifier_dict = {k.replace('classifier.', ''): v for k, v in classifier_state.items() if 'classifier' in k}
+        self.model.classifier.load_state_dict(classifier_dict)
+        self.model.eval()
+        print("Model loaded successfully!")
+
+    def predict(self, features):
+        with torch.no_grad():
+            # x = torch.tensor(features, dtype=torch.float32).unsqueeze(0)
+            y = self.model.predict(features)
+        return y
+
+web_app = FastAPI()
+model_container = ModelContainer()  # global
+
+@web_app.post("/predict")
+def predict(req: dict):
+    text = req["features"]  # string input
+    # inputs = tokenizer(text, return_tensors="pt", padding=True, truncation=True)
+    # print("inputs=", inputs)
+    # feed tokenized input to the model
+    y = model_container.predict(text)
+    # if isinstance(y, torch.Tensor):
+    #     y = y.item()
+    # return {"fraud_probability": y}
+    return {"prob": y["probability"]}
+    # return {"fraud_probability": model_container.predict(req["features"])}
+
+@app.function(
+    image=modal.Image.debian_slim().pip_install("torch", "transformers", "fastapi", "accelerate"),
+    gpu="H100",
+    volumes={MODEL_DIR: volume},
+    secrets=[modal.Secret.from_name("modal")],
+    timeout=1200
+)
+@modal.asgi_app()
+def serve():
+    return web_app
+
+
+# # local testing
+# if __name__ == "__main__":
+#     # Run the function and get the result
+#     f = my_function.spawn()  # runs remotely
+#     # Stream logs to local terminal
+#     for log in f.logs(stream=True):
+#         print(log)
+#     # Optionally get the return value
+#     result = f.wait()
+#     print("Result:", result)
