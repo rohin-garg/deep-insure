@@ -18,7 +18,7 @@ from modal import Image, App, Volume, gpu, method
 app = App("insurance-fraud-detector")
 
 #save_name
-save_name = "state_dict_400_1e-3.pth"
+save_name = "state_dict_200_1e-3.pth"
 
 # Create Modal image with required dependencies
 image = (
@@ -216,7 +216,7 @@ class InsuranceDataset(Dataset):
 
 @app.function(
     image=image,
-    gpu="A100-40GB",
+    gpu="H100",
     volumes={"/models": volume},
     secrets=[modal.Secret.from_name("modal")],
     timeout=3600,  # 1 hour timeout
@@ -511,7 +511,7 @@ def main():
     # Load data from insurance_fragments
     print("Loading training data...")
     from insurance_fragments import insurance_data
-    train_data = insurance_data[:400]  # Use the data from insurance_fragments module
+    train_data = insurance_data[:200]  # Use the data from insurance_fragments module
     
     # Split data into train/val (80/20 split)
     split_idx = int(0.8 * len(train_data))
