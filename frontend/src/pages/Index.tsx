@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
+import { useScramble } from "use-scramble";
 import { Header } from "@/components/Header";
 import { URLInput } from "@/components/URLInput";
 import { Navigation } from "@/components/Navigation";
@@ -21,6 +22,16 @@ const Index = () => {
   const [summary, setSummary] = useState<InsuranceSection[]>([]);
   const [currentInsuranceUrl, setCurrentInsuranceUrl] = useState<string>('');
   const { toast } = useToast();
+
+  // Scramble animation for loading text
+  const { ref: scrambleRef } = useScramble({
+    text: loadingText,
+    speed: 0.6,
+    tick: 1,
+    step: 1,
+    scramble: 8,
+    seed: 2,
+  });
 
   // Flavor text for loading states
   const loadingMessages = useMemo(() => [
@@ -49,12 +60,12 @@ const Index = () => {
     setLoading(true);
     setLoadingText(loadingMessages[0]);
     
-    // Rotate through loading messages
+    // Rotate through loading messages with scramble animation
     let messageIndex = 0;
     const messageInterval = setInterval(() => {
       messageIndex = (messageIndex + 1) % loadingMessages.length;
       setLoadingText(loadingMessages[messageIndex]);
-    }, 300);
+    }, 2500);
 
     try {
       const data = await api.getFullSummary(url);
@@ -179,7 +190,7 @@ const Index = () => {
             </DialogTitle>
             <DialogDescription asChild>
               <div className="text-center space-y-2">
-                <p className="text-sm text-muted-foreground">
+                <p ref={scrambleRef} className="text-sm text-muted-foreground min-h-[1.25rem]">
                   {loadingText}
                 </p>
                 <div className="flex items-center justify-center gap-1 text-xs text-muted-foreground">

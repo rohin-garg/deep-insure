@@ -18,7 +18,7 @@ export const URLInput = ({ onSubmit }: URLInputProps) => {
   };
 
   return (
-    <div className="min-h-[80vh] flex items-center justify-center bg-gradient-to-br from-background to-muted/20">
+    <div className="min-h-screen flex items-start justify-center bg-gradient-to-br from-background to-muted/20 pt-32">
       <div className="w-full max-w-2xl mx-auto p-8">
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 bg-primary/10 rounded-full mb-4">
@@ -28,7 +28,7 @@ export const URLInput = ({ onSubmit }: URLInputProps) => {
             Simplify Your Insurance Plan
           </h1>
           <p className="text-xl text-muted-foreground mb-2">
-            Enter your insurance plan URL or company and insurance policy to generate a searchable, easy-to-read wiki
+            Enter your insurance plan URL or type in a company and insurance policy to generate a searchable, easy-to-read wiki
           </p>
         </div>
 
@@ -54,16 +54,15 @@ export const URLInput = ({ onSubmit }: URLInputProps) => {
             </Button>
           </div>
         </form>
-
         <div className="mt-8 text-center">
           <p className="text-sm text-muted-foreground">
-            Don't have a URL? Try our{" "}
+            Don't have a URL? Try this {" "}
             <button
               type="button"
-              onClick={() => onSubmit("demo")}
+              onClick={() => setUrl("https://www.uhc.com/medicare/health-plans/details.html/01054/011/H8768045000/2025?WT.mc_id=8031049")}
               className="text-primary hover:underline font-medium"
             >
-              demo
+              demo policy
             </button>
           </p>
         </div>

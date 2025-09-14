@@ -65,7 +65,9 @@ const Chat = () => {
       }
 
       // Ask the question
+      console.log('About to call askQuery...');
       const response = await api.askQuery(currentChatId, question);
+      console.log('Got response from askQuery:', response);
 
       // Update the AI message with response
       setMessages(prev => prev.map(msg =>
@@ -96,10 +98,17 @@ const Chat = () => {
 
   // Initialize chat from URL params
   useEffect(() => {
+    let hasInitialized = false;
+
     const initializeChat = async () => {
+      if (hasInitialized) return;
+      hasInitialized = true;
+
       const q = searchParams.get("q");
       const url = searchParams.get("url");
       const existingChatId = searchParams.get("chat");
+
+      console.log('Initializing chat with:', { q, url, existingChatId });
 
       if (url) {
         setInsuranceUrl(url);
@@ -110,6 +119,7 @@ const Chat = () => {
         setChatId(existingChatId);
         try {
           const history = await api.getChatHistory(existingChatId);
+          console.log('Loaded chat history:', history);
           // Parse history into messages
           const parsedMessages: ChatMessage[] = [];
           for (let i = 0; i < history.length; i++) {
@@ -135,13 +145,14 @@ const Chat = () => {
       }
 
       // If we have a new question and insurance URL
-      if (q && url && messages.length === 0) {
+      if (q && url) {
+        console.log('Processing initial question');
         await handleInitialQuestion(q, url, existingChatId);
       }
     };
 
     initializeChat();
-  }, [searchParams, handleInitialQuestion, messages.length]);
+  }, [searchParams]);
 
   const handleMouseDown = (e: React.MouseEvent) => {
     e.preventDefault();

@@ -151,10 +151,14 @@ export const api = {
   async askQuery(id: string, query: string): Promise<string> {
     try {
       const params = new URLSearchParams({ id, query });
+      const url = `${API_BASE_URL}/ask_query?${params}`;
 
-      console.log('Asking query:', query, 'for chat ID:', id);
+      console.log('=== ASK QUERY START ===');
+      console.log('URL:', url);
+      console.log('Query:', query);
+      console.log('Chat ID:', id);
 
-      const response = await fetch(`${API_BASE_URL}/ask_query?${params}`, {
+      const response = await fetch(url, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -162,17 +166,54 @@ export const api = {
         }
       });
 
+      console.log('Response status:', response.status);
+      console.log('Response ok:', response.ok);
+
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('Error asking query:', errorText);
-        throw new Error(`API error: ${response.status}`);
+        console.error('API Error Response:', errorText);
+        throw new Error(`API error: ${response.status} - ${errorText}`);
       }
 
-      const data = await response.json();
-      console.log('Query response:', data);
-      return data.answer || data;
+      // Try to read response as text first to see raw response
+      const responseText = await response.text();
+      console.log('Raw response text:', responseText);
+
+      // Then parse as JSON
+      let data;
+      try {
+        data = JSON.parse(responseText);
+        console.log('Parsed JSON response:', data);
+      } catch (parseError) {
+        console.error('Failed to parse response as JSON:', parseError);
+        console.log('Returning raw text as response');
+        return responseText;
+      }
+
+      // Check if the response has an answer field
+      if (data.answer) {
+        console.log('Found answer field:', data.answer);
+        return data.answer;
+      } else if (typeof data === 'string') {
+        console.log('Response is string:', data);
+        return data;
+      } else {
+        console.error('Unexpected response format:', data);
+        console.log('Available keys:', Object.keys(data));
+        // Try to return any string value from the response
+        const stringValue = Object.values(data).find(val => typeof val === 'string');
+        if (stringValue) {
+          console.log('Found string value:', stringValue);
+          return stringValue as string;
+        }
+        throw new Error('Invalid response format from API');
+      }
     } catch (error) {
-      console.error('Error in askQuery:', error);
+      console.error('=== ASK QUERY ERROR ===');
+      console.error('Error details:', error);
+      console.error('Error type:', typeof error);
+      console.error('Error message:', error instanceof Error ? error.message : String(error));
+      console.error('=== ASK QUERY END ===');
       throw error;
     }
   }

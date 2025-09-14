@@ -85,10 +85,10 @@ export const TableOfContents = ({ markdown = "", className }: TableOfContentsPro
 
   if (tocItems.length === 0) {
     return (
-      <div className={cn("hidden xl:block w-64 shrink-0", className)}>
+      <div className={cn("hidden xl:block w-64 shrink-0 border-l border-border", className)}>
         <div className="sticky top-4 p-4">
           <div className="text-sm text-muted-foreground">
-            No headings found in this section.
+            No headings for this section
           </div>
         </div>
       </div>
