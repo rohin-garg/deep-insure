@@ -155,7 +155,7 @@ export const Header = ({ onShare, onLogoClick }: HeaderProps) => {
             <Button
               onClick={handleShare}
               size="sm"
-              className="bg-primary text-primary-foreground hover:bg-primary/90 group"
+              className="bg-[#1c398e] hover:bg-[#1e40af] text-white group"
             >
               <Share 
                 className="h-4 w-4 mr-2 transition-transform duration-200 ease-in-out group-hover:scale-110" 
