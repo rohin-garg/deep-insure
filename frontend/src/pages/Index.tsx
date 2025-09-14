@@ -5,24 +5,36 @@ import { Navigation } from "@/components/Navigation";
 import { ContentArea } from "@/components/ContentArea";
 import { TableOfContents } from "@/components/TableOfContents";
 import { ChatBar } from "@/components/ChatBar";
-import { mockSummary } from "@/utils/mockData";
+import { InsuranceSection } from "@/utils/mockData";
 import { useToast } from "@/hooks/use-toast";
+import { api } from "@/services/api";
 
 const Index = () => {
   const [currentView, setCurrentView] = useState<'input' | 'wiki'>('input');
   const [activeSection, setActiveSection] = useState<string>('');
   const [loading, setLoading] = useState(false);
+  const [summary, setSummary] = useState<InsuranceSection[]>([]);
   const { toast } = useToast();
 
   const handleUrlSubmit = async (url: string) => {
     setCurrentView('wiki');
     setLoading(true);
-    
-    // Simulate API call
-    setTimeout(() => {
+
+    try {
+      const data = await api.getFullSummary(url);
+      setSummary(data);
+      setActiveSection(data[0]?.id || '');
       setLoading(false);
-      setActiveSection(mockSummary[0]?.id || '');
-    }, 2000);
+    } catch (error) {
+      console.error('Error fetching summary:', error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch insurance plan summary. Please try again.",
+        variant: "destructive"
+      });
+      setLoading(false);
+      setCurrentView('input'); // Go back to input view on error
+    }
   };
 
   const handleSectionClick = (sectionId: string) => {
@@ -39,10 +51,10 @@ const Index = () => {
 
   const handleCitationClick = (link: string) => {
     // Find section that matches the link
-    const targetSection = mockSummary.find(section => 
+    const targetSection = summary.find(section =>
       link.includes(section.id) || section.id.includes(link.replace('-link', ''))
     );
-    
+
     if (targetSection) {
       setActiveSection(targetSection.id);
       toast({
@@ -52,7 +64,7 @@ const Index = () => {
     }
   };
 
-  const currentSection = mockSummary.find(section => section.id === activeSection);
+  const currentSection = summary.find(section => section.id === activeSection);
 
   return (
     <div className="min-h-screen bg-background">
@@ -64,16 +76,16 @@ const Index = () => {
         <>
           <div className="flex h-[calc(100vh-4rem)]">
             <Navigation
-              sections={mockSummary}
+              sections={summary}
               activeSection={activeSection}
               onSectionClick={handleSectionClick}
               loading={loading}
               className="w-80 hidden lg:flex"
             />
-            
+
             {/* Mobile Navigation */}
             <Navigation
-              sections={mockSummary}
+              sections={summary}
               activeSection={activeSection}
               onSectionClick={handleSectionClick}
               loading={loading}
