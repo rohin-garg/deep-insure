@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useSearchParams, Link } from "react-router-dom";
+import ReactMarkdown from 'react-markdown';
 import { Header } from "@/components/Header";
 import { ArrowLeft, User, Bot, ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -122,12 +123,12 @@ const Chat = () => {
   }, [setSearchParams, toast]);
 
   // Initialize chat from URL params
-  useEffect(() => {
-    let hasInitialized = false;
+  const hasInitializedRef = useRef(false);
 
+  useEffect(() => {
     const initializeChat = async () => {
-      if (hasInitialized) return;
-      hasInitialized = true;
+      if (hasInitializedRef.current) return;
+      hasInitializedRef.current = true;
 
       const q = searchParams.get("q");
       const url = searchParams.get("url");
@@ -193,12 +194,85 @@ const Chat = () => {
       // If we have a new question and insurance URL
       if (q && url) {
         console.log('Processing initial question');
-        await handleInitialQuestion(q, url, existingChatId);
+
+        const userMessage: ChatMessage = {
+          id: Date.now().toString(),
+          type: 'user',
+          content: q
+        };
+        const aiMessage: ChatMessage = {
+          id: (Date.now() + 1).toString(),
+          type: 'ai',
+          content: '',
+          isLoading: true
+        };
+
+        setMessages([userMessage, aiMessage]);
+        setIsLoadingNewMessage(true);
+
+        try {
+          // Generate chat ID if we don't have one
+          let currentChatId = existingChatId;
+          if (!currentChatId) {
+            currentChatId = await api.generateChatId(url);
+            setChatId(currentChatId);
+            // Update URL with chat ID
+            setSearchParams({ q, url, chat: currentChatId });
+          }
+
+          // Ask the question
+          console.log('About to call askQuery...');
+          const response = await api.askQuery(currentChatId, q);
+          console.log('Got response from askQuery:', response);
+
+          // Update the AI message with response
+          setMessages(prev => prev.map(msg =>
+            msg.id === aiMessage.id
+              ? { ...msg, content: response, isLoading: false, displayContent: '' }
+              : msg
+          ));
+
+          // Parse sources from response
+          const extractedSources = extractSourcesFromResponse(response);
+          setSources(extractedSources);
+
+          // Start typing animation
+          typeMessage(aiMessage.id, response);
+        } catch (error) {
+          console.error('Error processing initial question:', error);
+          console.warn('🔄 API unavailable - falling back to mock data for development');
+
+          // Fallback to mock data
+          setTimeout(() => {
+            // Generate mock chat ID if we don't have one
+            let currentChatId = existingChatId;
+            if (!currentChatId) {
+              currentChatId = generateMockChatId();
+              setChatId(currentChatId);
+              setSearchParams({ q, url, chat: currentChatId });
+            }
+
+            // Use mock response
+            setMessages(prev => prev.map(msg =>
+              msg.id === aiMessage.id
+                ? { ...msg, content: mockAIResponse, isLoading: false, displayContent: '' }
+                : msg
+            ));
+
+            // Use mock sources
+            animateSourcesLoading(mockSourceCards);
+
+            // Start typing animation with mock response
+            typeMessage(aiMessage.id, mockAIResponse);
+          }, 1500); // Simulate API delay
+        } finally {
+          setIsLoadingNewMessage(false);
+        }
       }
     };
 
     initializeChat();
-  }, [searchParams, handleInitialQuestion]);
+  }, [searchParams]);
 
   const handleMouseDown = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -443,26 +517,45 @@ const Chat = () => {
   // Extract sources from markdown response
   const extractSourcesFromResponse = (response: string): SourceCard[] => {
     const sources: SourceCard[] = [];
+    const seenUrls = new Set<string>();
+
     // Extract citations in format [text](url)
     const citationRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
-    const matches = response.matchAll(citationRegex);
+    const matches = Array.from(response.matchAll(citationRegex));
 
-    let index = 0;
     for (const match of matches) {
       const text = match[1];
       const url = match[2];
 
+      // Skip duplicates
+      if (seenUrls.has(url)) continue;
+      seenUrls.add(url);
+
+      // Find context around the link (get the sentence/paragraph it's in)
+      const matchIndex = match.index || 0;
+      const beforeText = response.substring(Math.max(0, matchIndex - 100), matchIndex);
+      const afterText = response.substring(matchIndex + match[0].length, matchIndex + match[0].length + 100);
+
+      // Try to find the sentence containing this link
+      const contextMatch = (beforeText + match[0] + afterText).match(/[^.!?]*\[([^\]]+)\]\(([^)]+)\)[^.!?]*/);
+      const context = contextMatch ? contextMatch[0].trim() : text;
+
+      // Determine source type from URL
+      let sourceType = 'Website';
+      if (url.includes('.pdf')) sourceType = 'PDF Document';
+      else if (url.includes('alphadog')) sourceType = 'Policy Document';
+      else if (url.includes('medicare')) sourceType = 'Medicare Plan';
+
       // Create source card from citation
       sources.push({
-        title: text,
+        title: text.replace(/^\*+|\*+$/g, ''), // Remove markdown bold markers
         url: url,
-        snippet: `Citation from response: "${text}"`,
-        type: 'Citation'
+        snippet: context,
+        type: sourceType
       });
-      index++;
 
       // Limit to prevent too many sources
-      if (index >= 10) break;
+      if (sources.length >= 15) break;
     }
 
     return sources;
@@ -472,27 +565,63 @@ const Chat = () => {
     navigator.clipboard.writeText(window.location.href);
   };
 
-  const mockAIResponse = `Based on your insurance policy documents, I can provide you with comprehensive information about your coverage.
+  const mockAIResponse = `Based on the provided information, the **AARP Medicare Advantage Patriot No Rx MA-MA01 (PPO)** offers comprehensive benefits while having some important exclusions.
 
-Your policy includes several key benefits:
+## Key Benefits Offered
 
-**Coverage Highlights:**
-- Preventive care is covered at 100% when using in-network providers [1]
-- Primary care visits have a $25 copay [2]
-- Specialist visits require a $50 copay [2]
-- Emergency room visits have a $300 copay (waived if admitted) [1]
+### **Medical Coverage**
+- **$0 monthly premium** with a [$60 Part B premium reduction](https://www.uhc.com/medicare/health-plans/details.html/01054/011/H8768045000/2025?WT.mc_id=8031049)
+- **No medical deductible** in or out-of-network
+- **Maximum out-of-pocket limits**: [$6,700 in-network, $10,100 combined](https://www.uhc.com/medicare/health-plans/details.html/01054/011/H8768045000/2025?WT.mc_id=8031049)
 
-**Detailed Benefits:**
-Your plan covers a wide range of medical services including hospital stays, outpatient surgery, diagnostic tests, and prescription medications [3]. Mental health services are covered at the same level as medical benefits [1].
+### **Doctor Visits & Care**
+- [**Primary care visits: $0 copay**](https://www.uhc.com/medicare/health-plans/details.html/01054/011/H8768045000/2025?WT.mc_id=8031049) in-network, $20 out-of-network
+- [**Specialist visits: $45 copay**](https://www.uhc.com/medicare/health-plans/details.html/01054/011/H8768045000/2025?WT.mc_id=8031049) in-network, $75 out-of-network
+- [**Virtual visits: $0 copay**](https://www.uhc.com/medicare/health-plans/details.html/01054/011/H8768045000/2025?WT.mc_id=8031049) with network providers
+- [**Preventive services: $0 copay**](https://www.uhc.com/medicare/health-plans/details.html/01054/011/H8768045000/2025?WT.mc_id=8031049) for covered services
 
-For more specific information about deductibles and copays [2], please refer to your policy documents. You can also review information about network providers [3] to ensure you're maximizing your benefits.
+### **Dental Benefits**
+- [**$2,000 dental allowance**](https://www.uhc.com/medicare/health-plans/details.html/01054/011/H8768045000/2025?WT.mc_id=8031049) for covered services like cleanings, fillings and crowns
+- **$0 copay** for covered network preventive services such as oral exams, routine cleanings, X-rays and fluoride
+- **50% coinsurance** for bridges and dentures, $0 copay for other comprehensive services
 
-**Important Notes:**
-- All percentages and copays listed are for in-network providers [3]
-- Out-of-network services may have reduced coverage [1]
-- Prior authorization may be required for certain procedures [2]
+### **Vision Benefits**
+- [**$250 allowance for eyewear**](https://www.uhc.com/medicare/health-plans/details.html/01054/011/H8768045000/2025?WT.mc_id=8031049) every two years
+- **$0 copay** for routine eye exams (1 per year)
+- Coverage for frames and lenses through network providers
 
-Would you like me to elaborate on any specific aspect of your coverage?`;
+### **Hearing Benefits**
+- **$0 copay** for routine hearing exams (1 per year)
+- [**Hearing aids from $99-$1,249 copay**](https://www.uhc.com/medicare/health-plans/details.html/01054/011/H8768045000/2025?WT.mc_id=8031049) for OTC and prescription hearing aids (up to 2 per year)
+
+### **Additional Benefits**
+- [**$40 OTC credit**](https://www.uhc.com/medicare/health-plans/details.html/01054/011/H8768045000/2025?WT.mc_id=8031049) every quarter for over-the-counter products
+- [**Renew Active fitness program: $0 copay**](https://www.uhc.com/medicare/health-plans/details.html/01054/011/H8768045000/2025?WT.mc_id=8031049) including gym membership and online classes
+- [**Meal benefit: $0 copay**](https://www.uhc.com/medicare/alphadog/AAMA25LP0238760_000) for 28 home-delivered meals after hospitalization
+- [**Rewards program**: Up to $155 annually](https://www.uhc.com/medicare/health-plans/details.html/01054/011/H8768045000/2025?WT.mc_id=8031049) for wellness activities
+
+## Important Things NOT Covered
+
+### **Transportation & Travel**
+- [**Routine transportation**](https://www.uhc.com/medicare/alphadog/AAMA25LP0240580_002) is not covered
+- [**Pre-scheduled, pre-planned treatments and elective procedures**](https://www.uhc.com/medicare/alphadog/AAMA25LP0244206_001) outside the U.S. are not covered
+- [**Transportation back to the United States**](https://www.uhc.com/medicare/alphadog/AAMA25LP0244206_001) from another country is not covered
+
+### **Medical Services**
+- [**Services provided by a dentist**](https://www.uhc.com/medicare/alphadog/AAMA25LP0244206_001) during emergency care are not covered
+- [**Provider access fees, appointment fees and administrative fees**](https://www.uhc.com/medicare/alphadog/AAMA25LP0244206_001) are not covered
+- Services not covered by Original Medicare are generally excluded
+
+### **Out-of-Network Limitations**
+- [**Out-of-network providers have no obligation to treat members**](https://www.uhc.com/medicare/alphadog/AAMA25LP0253194_012) except in emergencies
+- Higher cost-sharing applies for out-of-network services
+- Some services may require higher copayments or coinsurance when using non-contracted providers
+
+### **Other Exclusions**
+- [**Insulin and syringes**](https://www.uhc.com/medicare/alphadog/AAMA25LP0244206_001) are not covered under the diabetes monitoring supplies benefit
+- Various Medicare-standard exclusions apply as outlined in the Evidence of Coverage
+
+The plan provides comprehensive coverage with extensive additional benefits beyond Original Medicare, but members should be aware of the limitations, particularly regarding out-of-network care and certain specialized services.`;
 
   const mockSourceCards = [
     {
@@ -577,46 +706,68 @@ Would you like me to elaborate on any specific aspect of your coverage?`;
                       ) : (
                         <div className="bg-card border border-border rounded-lg p-4">
                           <div className="prose prose-sm max-w-none text-foreground">
-                            {(message.displayContent || message.content).split('\n').map((line, index) => (
-                              <p key={index} className="mb-2 last:mb-0">
-                                {line.includes('[') && line.includes('](') ? (
-                                  <>
-                                    {line.split(/(\[.*?\]\(.*?\))/g).map((part, i) => {
-                                      const linkMatch = part.match(/\[(.*?)\]\((.*?)\)/);
-                                      if (linkMatch) {
-                                        return (
-                                          <span key={i} className="text-primary hover:underline cursor-pointer">
-                                            {linkMatch[1]}
-                                          </span>
-                                        );
-                                      }
-                                      return part;
-                                    })}
-                                  </>
-                                ) : line.includes('[') && line.includes(']') ? (
-                                  <>
-                                    {line.split(/(\[\d+\])/g).map((part, i) => {
-                                      const citationMatch = part.match(/\[(\d+)\]/);
-                                      if (citationMatch) {
-                                        const sourceIndex = parseInt(citationMatch[1]) - 1;
-                                        return (
-                                          <button
-                                            key={i}
-                                            onClick={() => handleCitationClick(sourceIndex)}
-                                            className="text-primary hover:text-primary/80 underline underline-offset-2 font-medium cursor-pointer bg-transparent border-none p-0 mx-1"
-                                          >
-                                            [{citationMatch[1]}]
-                                          </button>
-                                        );
-                                      }
-                                      return part;
-                                    })}
-                                  </>
-                                ) : (
-                                  line
-                                )}
-                              </p>
-                            ))}
+                            <ReactMarkdown
+                              components={{
+                                a: ({ href, children }) => {
+                                  // Handle numbered citations like [1], [2], etc.
+                                  const citationMatch = children?.toString().match(/^\[(\d+)\]$/);
+                                  if (citationMatch) {
+                                    const sourceIndex = parseInt(citationMatch[1]) - 1;
+                                    return (
+                                      <button
+                                        onClick={() => handleCitationClick(sourceIndex)}
+                                        className="text-primary hover:text-primary/80 underline underline-offset-2 font-medium cursor-pointer bg-transparent border-none p-0 mx-1"
+                                      >
+                                        {children}
+                                      </button>
+                                    );
+                                  }
+                                  // Handle regular markdown links - these will become sources
+                                  return (
+                                    <span className="text-primary hover:underline cursor-pointer font-medium">
+                                      {children}
+                                    </span>
+                                  );
+                                },
+                                p: ({ children }) => (
+                                  <p className="text-foreground leading-7 mb-4">
+                                    {children}
+                                  </p>
+                                ),
+                                h1: ({ children }) => (
+                                  <h1 className="text-xl font-bold text-foreground mt-6 mb-4">
+                                    {children}
+                                  </h1>
+                                ),
+                                h2: ({ children }) => (
+                                  <h2 className="text-lg font-semibold text-foreground mt-5 mb-3">
+                                    {children}
+                                  </h2>
+                                ),
+                                h3: ({ children }) => (
+                                  <h3 className="text-base font-semibold text-foreground mt-4 mb-2">
+                                    {children}
+                                  </h3>
+                                ),
+                                ul: ({ children }) => (
+                                  <ul className="list-disc list-inside space-y-2 mb-4 text-foreground">
+                                    {children}
+                                  </ul>
+                                ),
+                                li: ({ children }) => (
+                                  <li className="text-foreground">
+                                    {children}
+                                  </li>
+                                ),
+                                strong: ({ children }) => (
+                                  <strong className="font-semibold text-foreground">
+                                    {children}
+                                  </strong>
+                                )
+                              }}
+                            >
+                              {message.displayContent || message.content}
+                            </ReactMarkdown>
                           </div>
                         </div>
                       )}
@@ -700,15 +851,39 @@ Would you like me to elaborate on any specific aspect of your coverage?`;
                         </div>
                         <p className="text-xs text-muted-foreground mt-1 ml-8">{source.url}</p>
                       </div>
-                      <div 
+                      <div
                         className={`overflow-hidden transition-all ease-in-out ${
-                          isCollapsed ? 'max-h-0 duration-[700ms]' : 'max-h-96 duration-700'
+                          isCollapsed ? 'max-h-0 duration-[700ms]' : 'max-h-[500px] duration-700'
                         }`}
                       >
-                        <div className="p-4">
-                          <pre className="text-sm text-foreground whitespace-pre-wrap font-mono bg-muted/30 p-3 rounded border">
-{source.snippet}
-                          </pre>
+                        <div className="p-2">
+                          <div className="bg-muted/30 rounded border overflow-hidden">
+                            <iframe
+                              src={source.url}
+                              title={`Source: ${source.title}`}
+                              className="w-full h-[400px] border-0"
+                              sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
+                              loading="lazy"
+                              onError={(e) => {
+                                // Fallback: show context snippet instead of iframe
+                                const iframe = e.target as HTMLIFrameElement;
+                                const fallbackDiv = document.createElement('div');
+                                fallbackDiv.innerHTML = `
+                                  <div class="p-4 text-sm text-foreground">
+                                    <p class="text-muted-foreground mb-2">Unable to embed webpage. Here's the context:</p>
+                                    <div class="bg-background p-3 rounded border">
+                                      <p>"${source.snippet}"</p>
+                                    </div>
+                                    <a href="${source.url}" target="_blank" rel="noopener noreferrer"
+                                       class="text-primary hover:underline mt-2 inline-block">
+                                      → Open source in new tab
+                                    </a>
+                                  </div>
+                                `;
+                                iframe.parentNode?.replaceChild(fallbackDiv, iframe);
+                              }}
+                            />
+                          </div>
                         </div>
                       </div>
                     </div>

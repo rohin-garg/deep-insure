@@ -20,16 +20,20 @@ const Index = () => {
   const [summary, setSummary] = useState<InsuranceSection[]>([]);
   const [currentInsuranceUrl, setCurrentInsuranceUrl] = useState<string>('');
   const [isSectionHighlighted, setIsSectionHighlighted] = useState(false);
+  const [isScrambling, setIsScrambling] = useState(false);
   const { toast } = useToast();
 
   // Scramble animation for loading text
   const { ref: scrambleRef } = useScramble({
     text: loadingText,
-    speed: 0.6,
+    speed: 0.5,
     tick: 1,
     step: 1,
-    scramble: 8,
+    scramble: 4,
     seed: 2,
+    playOnMount: false,
+    onAnimationStart: () => setIsScrambling(true),
+    onAnimationComplete: () => setIsScrambling(false),
   });
 
   // Flavor text for loading states
@@ -60,14 +64,22 @@ const Index = () => {
 
     // Rotate through loading messages with scramble animation
     let messageIndex = 0;
-    const messageInterval = setInterval(() => {
-      messageIndex = (messageIndex + 1) % loadingMessages.length;
-      setLoadingText(loadingMessages[messageIndex]);
-    }, 2500);
+    const rotateMessages = () => {
+      // Show current message for 2 seconds
+      setTimeout(() => {
+        if (loading) {
+          // Move to next message
+          messageIndex = (messageIndex + 1) % loadingMessages.length;
+          setLoadingText(loadingMessages[messageIndex]);
+          rotateMessages(); // Schedule next rotation
+        }
+      }, 2500);
+    };
+
+    rotateMessages(); // Start the rotation
 
     try {
       const data = await api.getFullSummary(url);
-      clearInterval(messageInterval);
       setSummary(data);
       setActiveSection(data[0]?.id || '');
       setLoading(false);
@@ -77,7 +89,6 @@ const Index = () => {
     } catch (error) {
       console.error('Error fetching summary:', error);
       console.warn('🔄 API unavailable - falling back to mock summary for development');
-      clearInterval(messageInterval);
 
       // Fallback to mock data with realistic timing
       setTimeout(() => {
@@ -93,7 +104,7 @@ const Index = () => {
           description: "Using mock data - API unavailable. Check console for details.",
           variant: "default"
         });
-      }, 1000); // Brief additional delay to make it feel realistic
+      }, 4000); // Longer delay to show loading messages
     }
   }, [setSearchParams, toast, loadingMessages]);
 
