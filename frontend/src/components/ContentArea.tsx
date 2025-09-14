@@ -1,4 +1,5 @@
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { InsuranceSection } from "@/utils/mockData";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AlertCircle, Loader2, Search, Brain, Zap } from "lucide-react";
@@ -25,10 +26,10 @@ export const ContentArea = ({ section, loading, onCitationClick, enableTypingAni
   // Scramble animation for loading text
   const { ref: scrambleRef } = useScramble({
     text: loadingText,
-    speed: 0.6,
+    speed: 0.8,
     tick: 1,
     step: 1,
-    scramble: 8,
+    scramble: 5,
     seed: 2,
   });
 
@@ -75,14 +76,14 @@ export const ContentArea = ({ section, loading, onCitationClick, enableTypingAni
   // Start loading text rotation when loading starts
   useEffect(() => {
     if (loading && loadingUrl) {
-      setLoadingText(loadingMessages[0]);
-      
-      // Rotate through loading messages
       let messageIndex = 0;
+      setLoadingText(loadingMessages[messageIndex]);
+
+      // Rotate through loading messages
       loadingIntervalRef.current = setInterval(() => {
         messageIndex = (messageIndex + 1) % loadingMessages.length;
         setLoadingText(loadingMessages[messageIndex]);
-      }, 300);
+      }, 2500);
 
       // Start dot animation
       dotIntervalRef.current = setInterval(() => {
@@ -105,7 +106,7 @@ export const ContentArea = ({ section, loading, onCitationClick, enableTypingAni
         clearInterval(dotIntervalRef.current);
       }
     };
-  }, [loading, loadingUrl]);
+  }, [loading, loadingUrl, loadingMessages]);
 
   // Start typing animation when section changes
   useEffect(() => {
@@ -166,6 +167,7 @@ export const ContentArea = ({ section, loading, onCitationClick, enableTypingAni
     <div className="flex-1 scrollable">
       <article className="max-w-4xl mx-auto p-8 pb-32 prose prose-slate dark:prose-invert prose-headings:text-foreground prose-p:text-foreground prose-strong:text-foreground prose-li:text-foreground">
         <ReactMarkdown
+          remarkPlugins={[remarkGfm]}
           components={{
             a: ({ href, children }) => (
               <button
@@ -211,11 +213,32 @@ export const ContentArea = ({ section, loading, onCitationClick, enableTypingAni
                 </h3>
               );
             },
-            p: ({ children }) => (
-              <p className="text-foreground leading-7 mb-4">
-                {children}
-              </p>
-            ),
+            p: ({ children, node }) => {
+              // Check if paragraph contains only bold text (potential heading)
+              if (node && node.children && node.children.length === 1) {
+                const child = node.children[0];
+
+                if (child.type === 'element' && child.tagName === 'strong') {
+                  const boldText = child.children?.[0]?.value || '';
+                  const id = boldText.toLowerCase()
+                    .replace(/[^a-z0-9\s-]/g, '')
+                    .replace(/\s+/g, '-')
+                    .trim();
+
+                  return (
+                    <h4 id={id} className="text-lg font-semibold text-foreground mb-4 mt-6">
+                      {boldText}
+                    </h4>
+                  );
+                }
+              }
+
+              return (
+                <p className="text-foreground leading-7 mb-4">
+                  {children}
+                </p>
+              );
+            },
             ul: ({ children }) => (
               <ul className="list-disc list-inside space-y-2 mb-4 text-foreground">
                 {children}
@@ -225,6 +248,38 @@ export const ContentArea = ({ section, loading, onCitationClick, enableTypingAni
               <li className="text-foreground">
                 {children}
               </li>
+            ),
+            table: ({ children }) => (
+              <div className="overflow-x-auto my-6">
+                <table className="min-w-full border border-border rounded-lg">
+                  {children}
+                </table>
+              </div>
+            ),
+            thead: ({ children }) => (
+              <thead className="bg-muted">
+                {children}
+              </thead>
+            ),
+            tbody: ({ children }) => (
+              <tbody className="divide-y divide-border">
+                {children}
+              </tbody>
+            ),
+            tr: ({ children }) => (
+              <tr className="hover:bg-muted/50">
+                {children}
+              </tr>
+            ),
+            th: ({ children }) => (
+              <th className="px-4 py-3 text-left text-sm font-medium text-foreground border-r border-border last:border-r-0">
+                {children}
+              </th>
+            ),
+            td: ({ children }) => (
+              <td className="px-4 py-3 text-sm text-foreground border-r border-border last:border-r-0">
+                {children}
+              </td>
             )
           }}
         >
