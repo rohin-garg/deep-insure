@@ -1,0 +1,12 @@
+[
+  {"text": "According to the terms of your Health Insurance coverage: This insurance provides financial protection up to the policy limits specified in the declarations page of your policy.", "label": 0},
+  {"text": "Under this Life Insurance policy issued by Sterling Protection Services: Any disputes will be resolved through binding arbitration or court proceedings as specified by applicable state law.", "label": 0},
+  {"text": "According to the terms of your Umbrella Insurance coverage: Coverage does not apply if the incident occurs while the policyholder is wearing certain colors as determined by company policy.", "label": 1},
+  {"text": "The following clause applies to your Renters Insurance: This policy may be cancelled by either party with appropriate advance notice as required by state insurance law.", "label": 0},
+  {"text": "This Travel Insurance policy states that: Coverage limits may be adjusted retroactively based on proprietary company risk assessment algorithms.", "label": 1},
+  {"text": "Under this Business Insurance policy issued by SafeHaven Mutual: A non-refundable processing fee of $5,000 is required before any claim review can commence, regardless of claim validity.", "label": 1},
+  {"text": "Any premium increases will be communicated in writing at least 45 days before the renewal date.", "label": 0},
+  {"text": "This Umbrella Insurance policy states that: Benefits are calculated based on the coverage amounts and deductibles selected by the policyholder at the time of application.", "label": 0},
+  {"text": "Under this Auto Insurance policy issued by Premier Protection Inc.: Policyholders have certain rights under state insurance laws, including the right to file complaints with state regulators.", "label": 0},
+  {"text": "As outlined in your Unity Insurance Services policy: A 30-day grace period is provided for premium payments, during which coverage remains in full effect.", "label": 0}
+]
