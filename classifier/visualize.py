@@ -144,7 +144,7 @@ from build_train import InsuranceFraudDetector
 #         }
 
 
-def load_trained_model(model_path: str, model_name: str = "google/gemma-3-12b-it", device: str = None) -> InsuranceFraudDetector:
+def load_trained_model(model_path: str, model_name: str = "google/gemma-3-1b-it", device: str = None) -> InsuranceFraudDetector:
     """
     Load a trained insurance fraud detector model.
     
@@ -383,7 +383,7 @@ def main():
     Main function to visualize batch training losses and batch validation accuracies.
     """
     # Path to the saved model (adjust as needed)
-    model_path = "./state_dict_100_2e-3.pth"
+    model_path = "./state_dict_1B_200_1e-3.pth"
     
     try:
         print("Loading model checkpoint...")
