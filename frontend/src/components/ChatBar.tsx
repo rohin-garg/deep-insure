@@ -10,6 +10,7 @@ interface ChatBarProps {
 
 export const ChatBar = ({ onFollowUpQuestion }: ChatBarProps) => {
   const [query, setQuery] = useState("");
+  const [isFocused, setIsFocused] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const isOnChatPage = location.pathname === '/chat';
@@ -37,14 +38,20 @@ export const ChatBar = ({ onFollowUpQuestion }: ChatBarProps) => {
   return (
     <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 z-50 w-full max-w-2xl px-4">
       <form onSubmit={handleSubmit} className="relative">
-        <div className="bg-[#e8e8e7]/90 dark:bg-[#201c1c]/90 backdrop-blur-sm border border-border rounded-xl shadow-lg p-4">
+        <div className={`bg-[#e8e8e7]/90 dark:bg-[#201c1c]/90 backdrop-blur-sm border border-border rounded-xl shadow-lg transition-all duration-300 ease-out ${
+          isFocused ? 'p-4' : 'p-2'
+        }`}>
           <div className="flex items-center gap-3">
             <Input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={handleKeyDown}
+              onFocus={() => setIsFocused(true)}
+              onBlur={() => setIsFocused(false)}
               placeholder={isOnChatPage ? "Ask a follow up question..." : "Ask about your insurance plan..."}
-              className="border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 text-xl placeholder:text-muted-foreground/70 h-12"
+              className={`border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 text-xl placeholder:text-muted-foreground/70 transition-all duration-300 ease-out ${
+                isFocused ? 'h-12' : 'h-8'
+              }`}
             />
             <Button
               type="submit"
