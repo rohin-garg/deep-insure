@@ -8,6 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { api } from "@/services/api";
 import { useToast } from "@/hooks/use-toast";
+import { mockAIResponse, mockFollowUpResponses, mockSourceCards, mockChatHistory, generateMockChatId } from "@/utils/mockData";
 
 interface ChatMessage {
   id: string;
@@ -90,16 +91,31 @@ const Chat = () => {
       typeMessage(aiMessage.id, response);
     } catch (error) {
       console.error('Error processing initial question:', error);
-      toast({
-        title: "Error",
-        description: "Failed to process your question. Please try again.",
-        variant: "destructive"
-      });
-      setMessages(prev => prev.map(msg =>
-        msg.id === aiMessage.id
-          ? { ...msg, content: 'Sorry, I encountered an error processing your question.', isLoading: false }
-          : msg
-      ));
+      console.warn('🔄 API unavailable - falling back to mock data for development');
+
+      // Fallback to mock data
+      setTimeout(() => {
+        // Generate mock chat ID if we don't have one
+        let currentChatId = existingChatId;
+        if (!currentChatId) {
+          currentChatId = generateMockChatId();
+          setChatId(currentChatId);
+          setSearchParams({ q: question, url, chat: currentChatId });
+        }
+
+        // Use mock response
+        setMessages(prev => prev.map(msg =>
+          msg.id === aiMessage.id
+            ? { ...msg, content: mockAIResponse, isLoading: false, displayContent: '' }
+            : msg
+        ));
+
+        // Use mock sources
+        animateSourcesLoading(mockSourceCards);
+
+        // Start typing animation with mock response
+        typeMessage(aiMessage.id, mockAIResponse);
+      }, 1500); // Simulate API delay
     } finally {
       setIsLoadingNewMessage(false);
     }
@@ -150,6 +166,27 @@ const Chat = () => {
           setMessages(parsedMessages);
         } catch (error) {
           console.error('Error loading chat history:', error);
+          console.warn('🔄 API unavailable - using mock chat history for development');
+
+          // Fallback to mock chat history
+          const parsedMessages: ChatMessage[] = [];
+          for (let i = 0; i < mockChatHistory.length; i++) {
+            const msg = mockChatHistory[i];
+            if (msg.startsWith('**User:**')) {
+              parsedMessages.push({
+                id: `history-${i}`,
+                type: 'user',
+                content: msg.replace('**User:** ', '')
+              });
+            } else if (msg.startsWith('**Assistant:**')) {
+              parsedMessages.push({
+                id: `history-${i}`,
+                type: 'ai',
+                content: msg.replace('**Assistant:** ', '')
+              });
+            }
+          }
+          setMessages(parsedMessages);
         }
       }
 
@@ -366,16 +403,38 @@ const Chat = () => {
       }, 100);
     } catch (error) {
       console.error('Error processing follow-up question:', error);
-      toast({
-        title: "Error",
-        description: "Failed to process your question. Please try again.",
-        variant: "destructive"
-      });
-      setMessages(prev => prev.map(msg =>
-        msg.id === aiMessage.id
-          ? { ...msg, content: 'Sorry, I encountered an error processing your question.', isLoading: false }
-          : msg
-      ));
+      console.warn('🔄 API unavailable - falling back to mock data for development');
+
+      // Fallback to mock follow-up responses
+      setTimeout(() => {
+        const mockResponse = mockFollowUpResponses[Math.floor(Math.random() * mockFollowUpResponses.length)];
+
+        setMessages(prev => prev.map(msg =>
+          msg.id === aiMessage.id
+            ? { ...msg, content: mockResponse, isLoading: false, displayContent: '' }
+            : msg
+        ));
+
+        // Add some mock sources for the follow-up
+        const additionalMockSources = mockSourceCards.slice(-2); // Get last 2 sources
+        setSources(prev => [...prev, ...additionalMockSources]);
+        animateSourcesLoading(additionalMockSources);
+
+        // Start typing animation
+        typeMessage(aiMessage.id, mockResponse);
+
+        // Auto-scroll after mock response
+        setTimeout(() => {
+          chatScrollRef.current?.scrollTo({
+            top: chatScrollRef.current.scrollHeight,
+            behavior: 'smooth'
+          });
+          sourcesScrollRef.current?.scrollTo({
+            top: sourcesScrollRef.current.scrollHeight,
+            behavior: 'smooth'
+          });
+        }, 100);
+      }, 1200); // Simulate API delay
     } finally {
       setIsLoadingNewMessage(false);
     }

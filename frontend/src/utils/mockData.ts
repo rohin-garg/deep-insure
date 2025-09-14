@@ -157,7 +157,169 @@ Your prescription drug benefit provides access to a comprehensive formulary of m
 ];
 
 export const mockChatHistory = [
-  "**Q:** What's my annual deductible?\n**A:** Your annual deductible is $1,500 for individual coverage and $3,000 for family coverage. [See deductibles section](deductibles-copays)",
-  "**Q:** Are emergency room visits covered?\n**A:** Yes, [emergency services](coverage-overview) are covered 24/7 with a $200 copay after you meet your deductible.",
-  "**Q:** How much do prescription drugs cost?\n**A:** Prescription costs vary by tier: Generic drugs are $10, preferred brands $35, non-preferred brands $70, and specialty drugs are 25% coinsurance. [See prescription coverage](prescription-coverage)"
+  "**User:** What's my annual deductible?",
+  "**Assistant:** Your annual deductible is $1,500 for individual coverage and $3,000 for family coverage. This means you'll pay the full cost of covered services until you reach this amount each year. After that, your insurance will start sharing costs with you through copayments and coinsurance.",
+  "**User:** Are emergency room visits covered?",
+  "**Assistant:** Yes, emergency room visits are covered 24/7 with a $300 copay (waived if you're admitted to the hospital). However, if your condition isn't truly an emergency, consider using urgent care first, which only has a $75 copay and can handle many medical situations.",
+  "**User:** How much do prescription drugs cost?",
+  "**Assistant:** Prescription costs vary by tier: Generic drugs (Tier 1) have a $10 copay, preferred brand drugs (Tier 2) are $35, non-preferred brands (Tier 3) cost $70, and specialty drugs (Tier 4) require 25% coinsurance. You can save money by choosing generics when available or using mail-order pharmacy for 90-day supplies."
 ];
+
+// Mock AI responses for different scenarios
+export const mockAIResponse = `Based on your insurance policy documents, I can provide you with comprehensive information about your coverage.
+
+Your policy includes several key benefits:
+
+**Coverage Highlights:**
+- Preventive care is covered at 100% when using in-network providers [1]
+- Primary care visits have a $25 copay [2]
+- Specialist visits require a $50 copay [2]
+- Emergency room visits have a $300 copay (waived if admitted) [1]
+
+**Detailed Benefits:**
+Your plan covers a wide range of medical services including hospital stays, outpatient surgery, diagnostic tests, and prescription medications [3]. Mental health services are covered at the same level as medical benefits [1].
+
+For more specific information about deductibles and copays [2], please refer to your policy documents. You can also review information about network providers [3] to ensure you're maximizing your benefits.
+
+**Important Notes:**
+- All percentages and copays listed are for in-network providers [3]
+- Out-of-network services may have reduced coverage [1]
+- Prior authorization may be required for certain procedures [2]
+
+Would you like me to elaborate on any specific aspect of your coverage?`;
+
+export const mockFollowUpResponses = [
+  `Thank you for your follow-up question. Let me provide more specific details about that aspect of your coverage.
+
+**Additional Coverage Details:**
+- Maternity and newborn care is covered at 100% after you meet your deductible [1]
+- Mental health and substance abuse services are covered at the same level as medical benefits [2]
+- Physical therapy requires a $40 copay per visit with up to 20 visits covered per year [3]
+
+**Cost-Saving Tips:**
+- Always verify that your provider is in-network before receiving services [3]
+- Consider using urgent care instead of the emergency room for non-emergency situations [1]
+- Take advantage of free preventive services like annual check-ups and screenings [2]
+
+Is there anything else about your benefits you'd like me to clarify?`,
+
+  `I'm glad you're asking for more information. Here are additional details that might be helpful:
+
+**Prescription Drug Benefits:**
+- Generic medications have the lowest copays at just $10 per prescription [1]
+- Mail-order pharmacy offers 90-day supplies at reduced costs [2]
+- Prior authorization may be required for certain high-cost medications [3]
+
+**Wellness Programs:**
+- Free annual wellness exam with no copay [1]
+- Discounts available for gym memberships and wellness activities [2]
+- Tobacco cessation programs covered at 100% [3]
+
+**Special Services:**
+- Telemedicine visits available 24/7 with reduced copays [2]
+- Second opinion consultations covered for major diagnoses [1]
+- Case management services for complex medical conditions [3]
+
+Would you like more details about any of these specific benefits?`
+];
+
+export const mockSourceCards = [
+  {
+    title: "UnitedHealthcare Policy Document",
+    url: "policy-doc-1.pdf",
+    snippet: `Section 4.2: Coverage Overview
+
+Your plan includes comprehensive medical coverage with preventive care at 100% when using in-network providers. Primary care visits require a $25 copay per visit, while specialist consultations have a $50 copay.
+
+Emergency services are available 24/7 with a $300 copay, which is waived if you are admitted to the hospital. All emergency care is covered regardless of network status, as required by federal law.
+
+Mental health and substance abuse services are covered at the same benefit level as medical services, ensuring parity in your healthcare coverage.`,
+    type: "PDF Document"
+  },
+  {
+    title: "Benefits Summary",
+    url: "benefits-summary.pdf",
+    snippet: `Deductibles and Copays
+
+Annual Deductible: $1,500 individual / $3,000 family
+Out-of-pocket Maximum: $6,000 individual / $12,000 family
+
+Copayments:
+- Primary Care: $25
+- Specialist: $50
+- Urgent Care: $75
+- Emergency Room: $300 (waived if admitted)
+
+Coinsurance: 80% coverage after deductible for most services
+Prior Authorization: Required for certain procedures and high-cost medications`,
+    type: "Benefits Document"
+  },
+  {
+    title: "Network Provider Directory",
+    url: "provider-directory.html",
+    snippet: `In-Network Providers
+
+To maximize your benefits and minimize out-of-pocket costs, always use in-network healthcare providers. Your network includes over 1.2 million physicians and healthcare professionals nationwide.
+
+Provider Search Features:
+- Search by specialty, location, or provider name
+- Real-time network status verification
+- Patient reviews and quality ratings
+- Appointment availability indicators
+
+Out-of-Network Costs: Using providers outside your network will result in higher deductibles, increased coinsurance rates, and potential balance billing charges.`,
+    type: "Provider Directory"
+  },
+  {
+    title: "Prescription Drug Formulary",
+    url: "drug-formulary.pdf",
+    snippet: `Prescription Drug Coverage Tiers
+
+Tier 1 Medications (Generic): $10 copay
+- Most cost-effective option when available
+- Bioequivalent to brand-name drugs
+- Preferred by insurance for cost savings
+
+Tier 2 Medications (Preferred Brand): $35 copay
+- Brand-name drugs with negotiated rates
+- Often have generic alternatives available
+
+Tier 3 Medications (Non-Preferred Brand): $70 copay
+- Higher-cost brand medications
+- May require prior authorization
+
+Tier 4 Medications (Specialty): 25% coinsurance
+- Complex medications requiring special handling
+- Often used for rare or chronic conditions
+- May require specialty pharmacy dispensing`,
+    type: "Formulary Document"
+  },
+  {
+    title: "Wellness Benefits Guide",
+    url: "wellness-benefits.pdf",
+    snippet: `Preventive Care Services - 100% Covered
+
+Annual Services (No Copay):
+- Comprehensive physical examination
+- Routine screenings (mammography, colonoscopy, etc.)
+- Immunizations and vaccinations
+- Well-woman visits including contraceptive counseling
+
+Health Promotion Programs:
+- Weight management counseling
+- Tobacco cessation programs
+- Diabetes prevention programs
+- Stress management resources
+
+Wellness Discounts:
+- Gym membership reimbursement up to $200/year
+- Fitness tracker subsidies
+- Healthy lifestyle coaching programs`,
+    type: "Wellness Guide"
+  }
+];
+
+// Mock function to generate random chat ID
+export const generateMockChatId = (): string => {
+  return `mock-chat-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+};

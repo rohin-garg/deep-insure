@@ -7,7 +7,7 @@ import { Navigation } from "@/components/Navigation";
 import { ContentArea } from "@/components/ContentArea";
 import { TableOfContents } from "@/components/TableOfContents";
 import { ChatBar } from "@/components/ChatBar";
-import { InsuranceSection } from "@/utils/mockData";
+import { InsuranceSection, mockSummary } from "@/utils/mockData";
 import { useToast } from "@/hooks/use-toast";
 import { api } from "@/services/api";
 
@@ -76,14 +76,24 @@ const Index = () => {
       setSearchParams({ url });
     } catch (error) {
       console.error('Error fetching summary:', error);
+      console.warn('🔄 API unavailable - falling back to mock summary for development');
       clearInterval(messageInterval);
-      toast({
-        title: "Error",
-        description: "Failed to fetch insurance plan summary. Please try again.",
-        variant: "destructive"
-      });
-      setLoading(false);
-      setCurrentView('input'); // Go back to input view on error
+
+      // Fallback to mock data with realistic timing
+      setTimeout(() => {
+        setSummary(mockSummary);
+        setActiveSection(mockSummary[0]?.id || '');
+        setLoading(false);
+
+        // Still update URL params so navigation works
+        setSearchParams({ url });
+
+        toast({
+          title: "Development Mode",
+          description: "Using mock data - API unavailable. Check console for details.",
+          variant: "default"
+        });
+      }, 1000); // Brief additional delay to make it feel realistic
     }
   }, [setSearchParams, toast, loadingMessages]);
 
